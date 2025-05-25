@@ -16,13 +16,14 @@ type ImageTaskService struct {
 
 // ImageTaskInput 图像生成任务的输入参数
 type ImageTaskInput struct {
-	Prompt  string `json:"prompt"`
-	UserID  string `json:"user_id"`
-	Model   string `json:"model,omitempty"`
-	Size    string `json:"size,omitempty"`
-	Quality string `json:"quality,omitempty"`
-	Style   string `json:"style,omitempty"`
-	N       int    `json:"n,omitempty"`
+	Prompt         string `json:"prompt"`
+	UserID         string `json:"user_id"`
+	Model          string `json:"model,omitempty"`
+	Size           string `json:"size,omitempty"`
+	Quality        string `json:"quality,omitempty"`
+	Style          string `json:"style,omitempty"`
+	N              int    `json:"n,omitempty"`
+	ExternalTaskID string `json:"external_task_id,omitempty"` // 火山引擎等外部服务的任务ID
 }
 
 // ImageTaskResult 图像生成任务的结果
@@ -50,10 +51,11 @@ func (s *ImageTaskService) CreateImageTask(ctx context.Context, input *ImageTask
 
 	// 创建任务记录
 	task := &database.Task{
-		UserID: input.UserID,
-		Type:   "image_generation",
-		Status: "pending",
-		Input:  string(inputJSON),
+		UserID:         input.UserID,
+		Type:           "image_generation",
+		Status:         "pending",
+		Input:          string(inputJSON),
+		ExternalTaskID: input.ExternalTaskID, // 存储外部任务ID
 	}
 
 	if err := s.db.CreateTask(ctx, task); err != nil {

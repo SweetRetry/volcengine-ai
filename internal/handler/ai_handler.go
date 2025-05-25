@@ -4,20 +4,23 @@ import (
 	"net/http"
 	"strconv"
 
-	"jimeng-go-server/internal/service"
-
 	"github.com/gin-gonic/gin"
+
+	"jimeng-go-server/internal/queue"
+	"jimeng-go-server/internal/service"
 )
 
 type AIHandler struct {
 	imageTaskService    *service.ImageTaskService
 	volcengineAIService *service.VolcengineAIService
+	queueService        *queue.RedisQueue
 }
 
-func NewAIHandler(imageTaskService *service.ImageTaskService, volcengineAIService *service.VolcengineAIService) *AIHandler {
+func NewAIHandler(imageTaskService *service.ImageTaskService, volcengineAIService *service.VolcengineAIService, queueService *queue.RedisQueue) *AIHandler {
 	return &AIHandler{
 		imageTaskService:    imageTaskService,
 		volcengineAIService: volcengineAIService,
+		queueService:        queueService,
 	}
 }
 
@@ -66,38 +69,34 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 	task, err := h.imageTaskService.CreateImageTask(c.Request.Context(), input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建图像任务失败",
+			"error":   "创建图像任务记录失败",
 			"message": err.Error(),
 		})
 		return
 	}
 
-	// 构建火山引擎API选项
-	options := make(map[string]interface{})
-	if req.Model != "" {
-		options["model"] = req.Model
-	}
-	if req.N > 0 {
-		options["n"] = req.N
-	}
-	if req.Size != "" {
-		options["size"] = req.Size
-	}
-	if req.Quality != "" {
-		options["quality"] = req.Quality
-	}
-	if req.Style != "" {
-		options["style"] = req.Style
+	// 构建队列任务载荷
+	payload := &queue.AITaskPayload{
+		TaskID:   task.ID,
+		UserID:   req.UserID,
+		Type:     "image_generation",
+		Provider: "volcengine_jimeng",
+		Model:    model,
+		Input: map[string]interface{}{
+			"prompt":  req.Prompt,
+			"size":    req.Size,
+			"quality": req.Quality,
+			"style":   req.Style,
+			"n":       req.N,
+		},
 	}
 
-	// 调用火山引擎API创建异步任务
-	taskResponse, err := h.volcengineAIService.CreateImageTask(c.Request.Context(), req.Prompt, options)
-	if err != nil {
-		// 如果火山引擎API调用失败，更新任务状态
-		h.imageTaskService.UpdateImageTaskStatus(c.Request.Context(), task.ID, "failed", "", err.Error())
-
+	// 将任务放入Redis队列
+	if err := h.queueService.EnqueueTask(c.Request.Context(), queue.TypeImageGeneration, payload); err != nil {
+		// 如果入队失败，删除已创建的任务记录
+		h.imageTaskService.DeleteImageTask(c.Request.Context(), task.ID)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建图像生成任务失败",
+			"error":   "任务入队失败",
 			"message": err.Error(),
 		})
 		return
@@ -106,10 +105,9 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"data": gin.H{
-			"task_id":          task.ID,
-			"status":           "pending",
-			"provider":         "volcengine_jimeng",
-			"external_task_id": taskResponse.TaskID,
+			"task_id":  task.ID,
+			"status":   "pending",
+			"provider": "volcengine_jimeng",
 		},
 		"message": "图像生成任务创建成功",
 	})
@@ -135,44 +133,45 @@ func (h *AIHandler) GetVolcengineTaskResult(c *gin.Context) {
 		return
 	}
 
-	// 如果任务还在处理中
-	if result.Status == "pending" || result.Status == "processing" {
-		c.JSON(http.StatusAccepted, gin.H{
+	// 如果任务已经完成或失败，直接返回结果
+	if result.Status == "completed" || result.Status == "failed" {
+		if result.Status == "failed" {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "任务执行失败",
+				"message": result.Error,
+				"data": gin.H{
+					"task_id": taskID,
+					"status":  "failed",
+					"created": result.Created,
+				},
+			})
+			return
+		}
+
+		// 任务完成
+		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data": gin.H{
-				"task_id": taskID,
-				"status":  result.Status,
-				"message": "任务处理中，请稍后查询",
-				"created": result.Created,
+				"task_id":   taskID,
+				"status":    "completed",
+				"image_url": result.ImageURL,
+				"created":   result.Created,
 			},
+			"message": "任务完成",
 		})
 		return
 	}
 
-	// 如果任务失败
-	if result.Status == "failed" {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "任务执行失败",
-			"message": result.Error,
-			"data": gin.H{
-				"task_id": taskID,
-				"status":  "failed",
-				"created": result.Created,
-			},
-		})
-		return
-	}
-
-	// 任务完成
-	c.JSON(http.StatusOK, gin.H{
+	// 如果任务还在处理中，返回处理中状态
+	// 现在使用Redis队列处理，任务状态由队列工作器更新
+	c.JSON(http.StatusAccepted, gin.H{
 		"success": true,
 		"data": gin.H{
-			"task_id":   taskID,
-			"status":    "completed",
-			"image_url": result.ImageURL,
-			"created":   result.Created,
+			"task_id": taskID,
+			"status":  "processing",
+			"message": "任务处理中，请稍后查询",
+			"created": result.Created,
 		},
-		"message": "任务完成",
 	})
 }
 

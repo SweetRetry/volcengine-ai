@@ -41,29 +41,30 @@ type User struct {
 
 // Task 任务模型
 type Task struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Type        string    `json:"type"`        // AI生成类型
-	Status      string    `json:"status"`      // pending, processing, completed, failed
-	Input       string    `json:"input"`       // 输入参数
-	Output      string    `json:"output"`      // 输出结果
-	ErrorMsg    string    `json:"error_msg"`   // 错误信息
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID             string     `json:"id"`
+	UserID         string     `json:"user_id"`
+	Type           string     `json:"type"`             // AI生成类型
+	Status         string     `json:"status"`           // pending, processing, completed, failed
+	Input          string     `json:"input"`            // 输入参数
+	Output         string     `json:"output"`           // 输出结果
+	ErrorMsg       string     `json:"error_msg"`        // 错误信息
+	ExternalTaskID string     `json:"external_task_id"` // 外部服务的任务ID（如火山引擎任务ID）
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
 }
 
 // AIRequest AI请求记录
 type AIRequest struct {
-	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
-	TaskID     string    `json:"task_id"`
-	Provider   string    `json:"provider"`   // 服务提供商，如"jimeng"
-	Model      string    `json:"model"`      // 模型名称
-	Prompt     string    `json:"prompt"`     // 请求提示词
-	Response   string    `json:"response"`   // 响应结果
-	Tokens     int       `json:"tokens"`     // 消耗的token数量
-	Cost       float64   `json:"cost"`       // 消耗费用
-	Duration   int64     `json:"duration"`   // 请求耗时(毫秒)
-	CreatedAt  time.Time `json:"created_at"`
-} 
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TaskID    string    `json:"task_id"`
+	Provider  string    `json:"provider"` // 服务提供商，如"jimeng"
+	Model     string    `json:"model"`    // 模型名称
+	Prompt    string    `json:"prompt"`   // 请求提示词
+	Response  string    `json:"response"` // 响应结果
+	Tokens    int       `json:"tokens"`   // 消耗的token数量
+	Cost      float64   `json:"cost"`     // 消耗费用
+	Duration  int64     `json:"duration"` // 请求耗时(毫秒)
+	CreatedAt time.Time `json:"created_at"`
+}

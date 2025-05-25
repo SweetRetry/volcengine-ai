@@ -25,16 +25,17 @@ type MongoUser struct {
 }
 
 type MongoTask struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty"`
-	UserID      string             `bson:"user_id"`
-	Type        string             `bson:"type"`
-	Status      string             `bson:"status"`
-	Input       string             `bson:"input"`
-	Output      string             `bson:"output"`
-	ErrorMsg    string             `bson:"error_msg"`
-	CreatedAt   time.Time          `bson:"created_at"`
-	UpdatedAt   time.Time          `bson:"updated_at"`
-	CompletedAt *time.Time         `bson:"completed_at,omitempty"`
+	ID             primitive.ObjectID `bson:"_id,omitempty"`
+	UserID         string             `bson:"user_id"`
+	Type           string             `bson:"type"`
+	Status         string             `bson:"status"`
+	Input          string             `bson:"input"`
+	Output         string             `bson:"output"`
+	ErrorMsg       string             `bson:"error_msg"`
+	ExternalTaskID string             `bson:"external_task_id"`
+	CreatedAt      time.Time          `bson:"created_at"`
+	UpdatedAt      time.Time          `bson:"updated_at"`
+	CompletedAt    *time.Time         `bson:"completed_at,omitempty"`
 }
 
 type MongoAIRequest struct {
@@ -198,14 +199,15 @@ func (m *MongoDB) DeleteUser(ctx context.Context, id string) error {
 // 任务相关方法
 func (m *MongoDB) CreateTask(ctx context.Context, task *Task) error {
 	mongoTask := &MongoTask{
-		UserID:    task.UserID,
-		Type:      task.Type,
-		Status:    task.Status,
-		Input:     task.Input,
-		Output:    task.Output,
-		ErrorMsg:  task.ErrorMsg,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		UserID:         task.UserID,
+		Type:           task.Type,
+		Status:         task.Status,
+		Input:          task.Input,
+		Output:         task.Output,
+		ErrorMsg:       task.ErrorMsg,
+		ExternalTaskID: task.ExternalTaskID,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	collection := m.database.Collection("tasks")
@@ -234,22 +236,23 @@ func (m *MongoDB) GetTaskByID(ctx context.Context, id string) (*Task, error) {
 	}
 
 	return &Task{
-		ID:          mongoTask.ID.Hex(),
-		UserID:      mongoTask.UserID,
-		Type:        mongoTask.Type,
-		Status:      mongoTask.Status,
-		Input:       mongoTask.Input,
-		Output:      mongoTask.Output,
-		ErrorMsg:    mongoTask.ErrorMsg,
-		CreatedAt:   mongoTask.CreatedAt,
-		UpdatedAt:   mongoTask.UpdatedAt,
-		CompletedAt: mongoTask.CompletedAt,
+		ID:             mongoTask.ID.Hex(),
+		UserID:         mongoTask.UserID,
+		Type:           mongoTask.Type,
+		Status:         mongoTask.Status,
+		Input:          mongoTask.Input,
+		Output:         mongoTask.Output,
+		ErrorMsg:       mongoTask.ErrorMsg,
+		ExternalTaskID: mongoTask.ExternalTaskID,
+		CreatedAt:      mongoTask.CreatedAt,
+		UpdatedAt:      mongoTask.UpdatedAt,
+		CompletedAt:    mongoTask.CompletedAt,
 	}, nil
 }
 
 func (m *MongoDB) GetTasksByUserID(ctx context.Context, userID string, limit, offset int) ([]*Task, error) {
 	collection := m.database.Collection("tasks")
-	
+
 	opts := options.Find().
 		SetSort(bson.D{{Key: "created_at", Value: -1}}).
 		SetLimit(int64(limit)).
@@ -269,16 +272,17 @@ func (m *MongoDB) GetTasksByUserID(ctx context.Context, userID string, limit, of
 	tasks := make([]*Task, len(mongoTasks))
 	for i, mongoTask := range mongoTasks {
 		tasks[i] = &Task{
-			ID:          mongoTask.ID.Hex(),
-			UserID:      mongoTask.UserID,
-			Type:        mongoTask.Type,
-			Status:      mongoTask.Status,
-			Input:       mongoTask.Input,
-			Output:      mongoTask.Output,
-			ErrorMsg:    mongoTask.ErrorMsg,
-			CreatedAt:   mongoTask.CreatedAt,
-			UpdatedAt:   mongoTask.UpdatedAt,
-			CompletedAt: mongoTask.CompletedAt,
+			ID:             mongoTask.ID.Hex(),
+			UserID:         mongoTask.UserID,
+			Type:           mongoTask.Type,
+			Status:         mongoTask.Status,
+			Input:          mongoTask.Input,
+			Output:         mongoTask.Output,
+			ErrorMsg:       mongoTask.ErrorMsg,
+			ExternalTaskID: mongoTask.ExternalTaskID,
+			CreatedAt:      mongoTask.CreatedAt,
+			UpdatedAt:      mongoTask.UpdatedAt,
+			CompletedAt:    mongoTask.CompletedAt,
 		}
 	}
 
@@ -293,13 +297,14 @@ func (m *MongoDB) UpdateTask(ctx context.Context, task *Task) error {
 
 	update := bson.M{
 		"$set": bson.M{
-			"type":         task.Type,
-			"status":       task.Status,
-			"input":        task.Input,
-			"output":       task.Output,
-			"error_msg":    task.ErrorMsg,
-			"updated_at":   time.Now(),
-			"completed_at": task.CompletedAt,
+			"type":             task.Type,
+			"status":           task.Status,
+			"input":            task.Input,
+			"output":           task.Output,
+			"error_msg":        task.ErrorMsg,
+			"external_task_id": task.ExternalTaskID,
+			"updated_at":       time.Now(),
+			"completed_at":     task.CompletedAt,
 		},
 	}
 
@@ -375,7 +380,7 @@ func (m *MongoDB) GetAIRequestByID(ctx context.Context, id string) (*AIRequest, 
 
 func (m *MongoDB) GetAIRequestsByUserID(ctx context.Context, userID string, limit, offset int) ([]*AIRequest, error) {
 	collection := m.database.Collection("ai_requests")
-	
+
 	opts := options.Find().
 		SetSort(bson.D{{Key: "created_at", Value: -1}}).
 		SetLimit(int64(limit)).
@@ -414,4 +419,4 @@ func (m *MongoDB) GetAIRequestsByUserID(ctx context.Context, userID string, limi
 
 func (m *MongoDB) Close() error {
 	return m.client.Disconnect(context.Background())
-} 
+}

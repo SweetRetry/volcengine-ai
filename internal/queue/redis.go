@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -13,6 +14,10 @@ type RedisQueue struct {
 	client *asynq.Client
 	server *asynq.Server
 	opt    asynq.RedisConnOpt
+	// 添加服务依赖，用于更新任务状态
+	imageTaskService interface {
+		UpdateImageTaskStatus(ctx context.Context, taskID, status string, imageURL, errorMsg string) error
+	}
 }
 
 // 任务类型常量
@@ -32,7 +37,10 @@ type AITaskPayload struct {
 	Provider string                 `json:"provider"`
 }
 
-func NewRedisQueue(redisURL string) *RedisQueue {
+func NewRedisQueue(redisURL string, imageTaskService interface {
+	UpdateImageTaskStatus(ctx context.Context, taskID, status string, imageURL, errorMsg string) error
+},
+) *RedisQueue {
 	// 解析Redis URL
 	opt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
@@ -40,7 +48,7 @@ func NewRedisQueue(redisURL string) *RedisQueue {
 	}
 
 	client := asynq.NewClient(opt)
-	
+
 	server := asynq.NewServer(opt, asynq.Config{
 		Concurrency: 10,
 		Queues: map[string]int{
@@ -55,9 +63,10 @@ func NewRedisQueue(redisURL string) *RedisQueue {
 	})
 
 	return &RedisQueue{
-		client: client,
-		server: server,
-		opt:    opt,
+		client:           client,
+		server:           server,
+		opt:              opt,
+		imageTaskService: imageTaskService,
 	}
 }
 
@@ -148,10 +157,24 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 
 	logrus.Infof("处理图像生成任务: %s, 用户: %s", payload.TaskID, payload.UserID)
 
-	// 模拟图像生成处理时间
+	// 这里应该调用实际的AI服务
+	// 为了演示，我们模拟处理过程
 	time.Sleep(5 * time.Second)
 
-	logrus.Infof("图像生成任务完成: %s", payload.TaskID)
+	// 模拟生成的图像URL
+	imageURL := fmt.Sprintf("https://example.com/generated-image-%s.jpg", payload.TaskID)
+
+	logrus.Infof("图像生成任务完成: %s, 图像URL: %s", payload.TaskID, imageURL)
+
+	// 更新数据库中的任务状态
+	if r.imageTaskService != nil {
+		if err := r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "completed", imageURL, ""); err != nil {
+			logrus.Errorf("更新任务状态失败: %v", err)
+			return err
+		}
+		logrus.Infof("任务状态已更新为完成: %s", payload.TaskID)
+	}
+
 	return nil
 }
 
@@ -182,15 +205,15 @@ func (r *RedisQueue) GetQueueStats(ctx context.Context) (*QueueStats, error) {
 	}
 
 	return &QueueStats{
-		Pending:    stats.Pending,
-		Active:     stats.Active,
-		Scheduled:  stats.Scheduled,
-		Retry:      stats.Retry,
-		Archived:   stats.Archived,
-		Completed:  stats.Completed,
-		Processed:  stats.Processed,
-		Failed:     stats.Failed,
-		Timestamp:  time.Now(),
+		Pending:   stats.Pending,
+		Active:    stats.Active,
+		Scheduled: stats.Scheduled,
+		Retry:     stats.Retry,
+		Archived:  stats.Archived,
+		Completed: stats.Completed,
+		Processed: stats.Processed,
+		Failed:    stats.Failed,
+		Timestamp: time.Now(),
 	}, nil
 }
 
@@ -205,4 +228,4 @@ type QueueStats struct {
 	Processed int       `json:"processed"`
 	Failed    int       `json:"failed"`
 	Timestamp time.Time `json:"timestamp"`
-} 
+}

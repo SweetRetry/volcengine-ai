@@ -45,16 +45,16 @@ func main() {
 	}
 	defer db.Close()
 
-	// 初始化队列
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL)
-
 	// 初始化服务
 	volcengineAIService := service.NewVolcengineAIService(cfg.AI)
 	userService := service.NewUserService(db)
 	imageTaskService := service.NewImageTaskService(db)
 
+	// 初始化队列（传入imageTaskService）
+	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService)
+
 	// 初始化处理器
-	aiHandler := handler.NewAIHandler(imageTaskService, volcengineAIService)
+	aiHandler := handler.NewAIHandler(imageTaskService, volcengineAIService, queueClient)
 	userHandler := handler.NewUserHandler(userService)
 
 	// 设置Gin模式
