@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # MongoDB数据库
+  mongodb:
+    image: mongo:6.0
+    environment:
+      MONGO_INITDB_DATABASE: jimeng_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - jimeng-network
+
+  # Redis缓存和队列
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - jimeng-network
+
+  # 应用服务
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ENVIRONMENT=development
+      - LOG_LEVEL=info
+      - MONGO_URL=mongodb://mongodb:27017/jimeng_db
+      - REDIS_URL=redis://redis:6379
+      - JIMENG_API_KEY=your_api_key_here
+      - JIMENG_URL=https://api.jimeng.ai
+      - AI_TIMEOUT=30s
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - jimeng-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  jimeng-network:
+    driver: bridge 

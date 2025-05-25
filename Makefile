@@ -1,0 +1,129 @@
+.PHONY: build run test clean docker-build docker-run dev install
+
+# Go相关变量
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOTEST=$(GOCMD) test
+GOGET=$(GOCMD) get
+GOMOD=$(GOCMD) mod
+
+# 应用变量
+BINARY_NAME=jimeng-server
+BINARY_UNIX=$(BINARY_NAME)_unix
+MAIN_PATH=cmd/server/main.go
+
+# Docker变量
+DOCKER_IMAGE=jimeng-go-server
+DOCKER_TAG=latest
+
+# 默认目标
+all: test build
+
+# 安装依赖
+install:
+	$(GOMOD) download
+	$(GOMOD) tidy
+
+# 构建应用
+build:
+	$(GOBUILD) -o $(BINARY_NAME) -v $(MAIN_PATH)
+
+# 构建Linux版本
+build-linux:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_UNIX) -v $(MAIN_PATH)
+
+# 运行应用
+run:
+	$(GOBUILD) -o $(BINARY_NAME) -v $(MAIN_PATH)
+	./$(BINARY_NAME)
+
+# 开发模式运行（热重载需要安装air: go install github.com/cosmtrek/air@latest）
+dev:
+	air
+
+# 测试
+test:
+	$(GOTEST) -v ./...
+
+# 测试覆盖率
+test-coverage:
+	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOCMD) tool cover -html=coverage.out
+
+# 清理
+clean:
+	$(GOCLEAN)
+	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_UNIX)
+	rm -f coverage.out
+
+# 格式化代码
+fmt:
+	$(GOCMD) fmt ./...
+
+# 代码检查
+lint:
+	golangci-lint run
+
+# 构建Docker镜像
+docker-build:
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+# 运行Docker容器
+docker-run:
+	docker run -p 8080:8080 --env-file config.env $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+# Docker compose启动
+docker-compose-up:
+	docker-compose up -d
+
+# Docker compose停止
+docker-compose-down:
+	docker-compose down
+
+# 数据库迁移（需要安装migrate工具）
+migrate-up:
+	migrate -path migrations -database "$(POSTGRES_URL)" up
+
+migrate-down:
+	migrate -path migrations -database "$(POSTGRES_URL)" down
+
+# 创建新的迁移文件
+migrate-create:
+	migrate create -ext sql -dir migrations -seq $(name)
+
+# 生成API文档（需要安装swag: go install github.com/swaggo/swag/cmd/swag@latest）
+docs:
+	swag init -g cmd/server/main.go
+
+# 安装开发工具
+tools:
+	$(GOGET) github.com/cosmtrek/air@latest
+	$(GOGET) github.com/swaggo/swag/cmd/swag@latest
+	$(GOGET) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# 部署到生产环境
+deploy:
+	@echo "部署到生产环境..."
+	$(MAKE) build-linux
+	# 这里添加具体的部署脚本
+
+# 帮助信息
+help:
+	@echo "可用的命令:"
+	@echo "  install         - 安装Go依赖"
+	@echo "  build          - 构建应用"
+	@echo "  build-linux    - 构建Linux版本"
+	@echo "  run            - 运行应用"
+	@echo "  dev            - 开发模式运行（使用Air热重载）"
+	@echo "  test           - 运行测试"
+	@echo "  test-coverage  - 运行测试并生成覆盖率报告"
+	@echo "  clean          - 清理构建文件"
+	@echo "  fmt            - 格式化代码"
+	@echo "  lint           - 代码检查"
+	@echo "  docker-build   - 构建Docker镜像"
+	@echo "  docker-run     - 运行Docker容器"
+	@echo "  docs           - 生成API文档"
+	@echo "  tools          - 安装开发工具"
+	@echo "  help           - 显示帮助信息" 

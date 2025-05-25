@@ -1,0 +1,64 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# 编译输出
+jimeng-server
+jimeng-server_unix
+
+# 测试覆盖率
+coverage.out
+
+# 环境变量文件
+.env
+.env.local
+.env.production
+
+# 日志文件
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Linux
+*~
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 数据库文件
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yml
+
+# Air热重载相关
+build-errors.log
+.air/
+
+# 备份文件
+*.backup
+
+# 调试文件
+debug
+debug.test
+__debug_bin 
