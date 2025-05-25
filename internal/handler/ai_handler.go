@@ -2,7 +2,7 @@ package handler
 
 import (
 	"net/http"
-	"time"
+	"strconv"
 
 	"jimeng-go-server/internal/service"
 
@@ -10,118 +10,31 @@ import (
 )
 
 type AIHandler struct {
-	taskService         *service.TaskService
+	imageTaskService    *service.ImageTaskService
 	volcengineAIService *service.VolcengineAIService
 }
 
-func NewAIHandler(taskService *service.TaskService, volcengineAIService *service.VolcengineAIService) *AIHandler {
+func NewAIHandler(imageTaskService *service.ImageTaskService, volcengineAIService *service.VolcengineAIService) *AIHandler {
 	return &AIHandler{
-		taskService:         taskService,
+		imageTaskService:    imageTaskService,
 		volcengineAIService: volcengineAIService,
 	}
 }
 
-// 异步任务请求结构
-type AsyncTaskRequest struct {
-	Type     string                 `json:"type" binding:"required"`
-	Model    string                 `json:"model" binding:"required"`
-	Input    map[string]interface{} `json:"input" binding:"required"`
-	Provider string                 `json:"provider"`
-	UserID   string                 `json:"user_id" binding:"required"`
-	Delay    int                    `json:"delay"`
+// parseIntParam 解析整数参数
+func parseIntParam(s string) (int, error) {
+	return strconv.Atoi(s)
 }
 
 // 火山引擎即梦AI图像生成请求结构
 type VolcengineImageRequest struct {
-	Prompt  string                 `json:"prompt" binding:"required"`
-	Model   string                 `json:"model"`
-	N       int                    `json:"n"`
-	Size    string                 `json:"size"`
-	Quality string                 `json:"quality"`
-	Style   string                 `json:"style"`
-	UserID  string                 `json:"user_id" binding:"required"`
-	Options map[string]interface{} `json:"options"`
-}
-
-// 创建异步任务
-func (h *AIHandler) CreateAsyncTask(c *gin.Context) {
-	var req AsyncTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "请求参数错误",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	provider := req.Provider
-	if provider == "" {
-		provider = "volcengine"
-	}
-
-	var task interface{}
-	var err error
-
-	if req.Delay > 0 {
-		delay := time.Duration(req.Delay) * time.Second
-		task, err = h.taskService.CreateDelayedTask(
-			c.Request.Context(),
-			req.UserID,
-			req.Type,
-			req.Input,
-			req.Model,
-			provider,
-			delay,
-		)
-	} else {
-		task, err = h.taskService.CreateAITask(
-			c.Request.Context(),
-			req.UserID,
-			req.Type,
-			req.Input,
-			req.Model,
-			provider,
-		)
-	}
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建任务失败",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    task,
-		"message": "任务创建成功",
-	})
-}
-
-// 获取任务状态
-func (h *AIHandler) GetTaskStatus(c *gin.Context) {
-	taskID := c.Param("id")
-	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "任务ID不能为空",
-		})
-		return
-	}
-
-	task, err := h.taskService.GetTask(c.Request.Context(), taskID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "任务不存在",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    task,
-	})
+	Prompt  string `json:"prompt" binding:"required"`
+	Model   string `json:"model"`
+	N       int    `json:"n"`
+	Size    string `json:"size"`
+	Quality string `json:"quality"`
+	Style   string `json:"style"`
+	UserID  string `json:"user_id" binding:"required"`
 }
 
 // 创建火山引擎即梦AI异步图像生成任务
@@ -132,7 +45,34 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 		return
 	}
 
-	// 构建选项参数
+	// 设置默认模型
+	model := req.Model
+	if model == "" {
+		model = "doubao-seedream-3.0-t2i"
+	}
+
+	// 创建图像任务输入
+	input := &service.ImageTaskInput{
+		Prompt:  req.Prompt,
+		UserID:  req.UserID,
+		Model:   model,
+		Size:    req.Size,
+		Quality: req.Quality,
+		Style:   req.Style,
+		N:       req.N,
+	}
+
+	// 在任务系统中创建记录
+	task, err := h.imageTaskService.CreateImageTask(c.Request.Context(), input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "创建图像任务失败",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 构建火山引擎API选项
 	options := make(map[string]interface{})
 	if req.Model != "" {
 		options["model"] = req.Model
@@ -150,43 +90,14 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 		options["style"] = req.Style
 	}
 
-	// 合并自定义选项
-	for k, v := range req.Options {
-		options[k] = v
-	}
-
-	// 创建异步任务
+	// 调用火山引擎API创建异步任务
 	taskResponse, err := h.volcengineAIService.CreateImageTask(c.Request.Context(), req.Prompt, options)
 	if err != nil {
+		// 如果火山引擎API调用失败，更新任务状态
+		h.imageTaskService.UpdateImageTaskStatus(c.Request.Context(), task.ID, "failed", "", err.Error())
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "创建图像生成任务失败",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	// 同时在任务系统中创建记录
-	input := map[string]interface{}{
-		"prompt":  req.Prompt,
-		"options": options,
-	}
-
-	model := req.Model
-	if model == "" {
-		model = "doubao-seedream-3.0-t2i"
-	}
-
-	task, err := h.taskService.CreateAITask(
-		c.Request.Context(),
-		req.UserID,
-		"image_generation",
-		input,
-		model,
-		"volcengine_jimeng",
-	)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建任务记录失败",
 			"message": err.Error(),
 		})
 		return
@@ -195,11 +106,10 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"data": gin.H{
-			"task_id":        taskResponse.TaskID,
-			"status":         taskResponse.Status,
-			"message":        taskResponse.Message,
-			"provider":       taskResponse.Provider,
-			"system_task_id": task,
+			"task_id":          task.ID,
+			"status":           "pending",
+			"provider":         "volcengine_jimeng",
+			"external_task_id": taskResponse.TaskID,
 		},
 		"message": "图像生成任务创建成功",
 	})
@@ -215,36 +125,39 @@ func (h *AIHandler) GetVolcengineTaskResult(c *gin.Context) {
 		return
 	}
 
-	result, err := h.volcengineAIService.GetTaskResult(c.Request.Context(), taskID)
+	// 获取图像任务详情
+	result, err := h.imageTaskService.GetImageTask(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "查询任务结果失败",
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "任务不存在",
 			"message": err.Error(),
 		})
 		return
 	}
 
 	// 如果任务还在处理中
-	if result.Error == "任务处理中，请稍后查询" {
+	if result.Status == "pending" || result.Status == "processing" {
 		c.JSON(http.StatusAccepted, gin.H{
 			"success": true,
 			"data": gin.H{
 				"task_id": taskID,
-				"status":  "processing",
+				"status":  result.Status,
 				"message": "任务处理中，请稍后查询",
+				"created": result.Created,
 			},
 		})
 		return
 	}
 
-	// 如果有错误
-	if result.Error != "" {
+	// 如果任务失败
+	if result.Status == "failed" {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "任务执行失败",
 			"message": result.Error,
 			"data": gin.H{
 				"task_id": taskID,
 				"status":  "failed",
+				"created": result.Created,
 			},
 		})
 		return
@@ -256,9 +169,78 @@ func (h *AIHandler) GetVolcengineTaskResult(c *gin.Context) {
 		"data": gin.H{
 			"task_id":   taskID,
 			"status":    "completed",
-			"result":    result,
 			"image_url": result.ImageURL,
+			"created":   result.Created,
 		},
 		"message": "任务完成",
+	})
+}
+
+// 获取用户的图像任务列表
+func (h *AIHandler) GetUserImageTasks(c *gin.Context) {
+	userID := c.Query("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "用户ID不能为空",
+		})
+		return
+	}
+
+	// 分页参数
+	limit := 20
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := parseIntParam(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := parseIntParam(o); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	tasks, err := h.imageTaskService.GetUserImageTasks(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "获取任务列表失败",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"tasks":  tasks,
+			"limit":  limit,
+			"offset": offset,
+			"count":  len(tasks),
+		},
+	})
+}
+
+// 删除图像任务
+func (h *AIHandler) DeleteImageTask(c *gin.Context) {
+	taskID := c.Param("task_id")
+	if taskID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "任务ID不能为空",
+		})
+		return
+	}
+
+	err := h.imageTaskService.DeleteImageTask(c.Request.Context(), taskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "删除任务失败",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "任务删除成功",
 	})
 }

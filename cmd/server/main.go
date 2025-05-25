@@ -51,12 +51,11 @@ func main() {
 	// 初始化服务
 	volcengineAIService := service.NewVolcengineAIService(cfg.AI)
 	userService := service.NewUserService(db)
-	taskService := service.NewTaskService(db, queueClient)
+	imageTaskService := service.NewImageTaskService(db)
 
 	// 初始化处理器
-	aiHandler := handler.NewAIHandler(taskService, volcengineAIService)
+	aiHandler := handler.NewAIHandler(imageTaskService, volcengineAIService)
 	userHandler := handler.NewUserHandler(userService)
-	taskHandler := handler.NewTaskHandler(taskService)
 
 	// 设置Gin模式
 	if cfg.Environment == "production" {
@@ -73,7 +72,7 @@ func main() {
 	r.Use(middleware.RateLimiterMiddleware())
 
 	// 设置路由
-	router.SetupRoutes(r, aiHandler, userHandler, taskHandler)
+	router.SetupRoutes(r, aiHandler, userHandler)
 
 	// 创建HTTP服务器
 	srv := &http.Server{
