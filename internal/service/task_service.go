@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -23,6 +24,36 @@ func NewTaskService(db database.Database, queue *queue.RedisQueue) *TaskService 
 	}
 }
 
+// serializeInput 将input序列化为JSON字符串
+func (s *TaskService) serializeInput(input map[string]interface{}) string {
+	if input == nil {
+		return "{}"
+	}
+
+	jsonBytes, err := json.Marshal(input)
+	if err != nil {
+		// 如果JSON序列化失败，回退到字符串表示
+		return fmt.Sprintf("%v", input)
+	}
+
+	return string(jsonBytes)
+}
+
+// deserializeInput 将JSON字符串反序列化为map
+func (s *TaskService) deserializeInput(inputStr string) (map[string]interface{}, error) {
+	if inputStr == "" {
+		return make(map[string]interface{}), nil
+	}
+
+	var input map[string]interface{}
+	err := json.Unmarshal([]byte(inputStr), &input)
+	if err != nil {
+		return nil, fmt.Errorf("反序列化input失败: %w", err)
+	}
+
+	return input, nil
+}
+
 // 创建AI任务
 func (s *TaskService) CreateAITask(ctx context.Context, userID, taskType string, input map[string]interface{}, model, provider string) (*database.Task, error) {
 	// 创建任务记录
@@ -30,7 +61,7 @@ func (s *TaskService) CreateAITask(ctx context.Context, userID, taskType string,
 		UserID: userID,
 		Type:   taskType,
 		Status: "pending",
-		Input:  fmt.Sprintf("%v", input), // 简单序列化，实际项目中应使用JSON
+		Input:  s.serializeInput(input),
 	}
 
 	if err := s.db.CreateTask(ctx, task); err != nil {
@@ -89,7 +120,7 @@ func (s *TaskService) CreateDelayedTask(ctx context.Context, userID, taskType st
 		UserID: userID,
 		Type:   taskType,
 		Status: "scheduled",
-		Input:  fmt.Sprintf("%v", input),
+		Input:  s.serializeInput(input),
 	}
 
 	if err := s.db.CreateTask(ctx, task); err != nil {
@@ -141,6 +172,21 @@ func (s *TaskService) GetTask(ctx context.Context, taskID string) (*database.Tas
 		return nil, fmt.Errorf("获取任务失败: %w", err)
 	}
 	return task, nil
+}
+
+// 获取任务输入参数（反序列化为map）
+func (s *TaskService) GetTaskInput(ctx context.Context, taskID string) (map[string]interface{}, error) {
+	task, err := s.db.GetTaskByID(ctx, taskID)
+	if err != nil {
+		return nil, fmt.Errorf("获取任务失败: %w", err)
+	}
+
+	input, err := s.deserializeInput(task.Input)
+	if err != nil {
+		return nil, fmt.Errorf("解析任务输入失败: %w", err)
+	}
+
+	return input, nil
 }
 
 // 获取用户的任务列表
@@ -208,6 +254,12 @@ func (s *TaskService) RetryTask(ctx context.Context, taskID string) error {
 		return fmt.Errorf("只能重试失败的任务")
 	}
 
+	// 解析任务输入参数
+	input, err := s.deserializeInput(task.Input)
+	if err != nil {
+		return fmt.Errorf("解析任务输入失败: %w", err)
+	}
+
 	// 重置任务状态
 	task.Status = "pending"
 	task.ErrorMsg = ""
@@ -222,7 +274,7 @@ func (s *TaskService) RetryTask(ctx context.Context, taskID string) error {
 		TaskID: task.ID,
 		UserID: task.UserID,
 		Type:   task.Type,
-		// Input需要重新解析，这里简化处理
+		Input:  input, // 使用解析后的input
 	}
 
 	var queueType string
@@ -265,4 +317,4 @@ func (s *TaskService) DeleteTask(ctx context.Context, taskID string) error {
 		return fmt.Errorf("删除任务失败: %w", err)
 	}
 	return nil
-} 
+}
