@@ -24,10 +24,11 @@ type RedisConfig struct {
 
 type AIConfig struct {
 	// 火山引擎即梦AI配置
-	VolcengineAPIKey   string
-	VolcengineEndpoint string
-	VolcengineRegion   string
-	Timeout            string
+	VolcengineAccessKey string // Access Key ID
+	VolcengineSecretKey string // Secret Access Key
+	VolcengineRegion    string // 区域，如 cn-north-1
+	VolcengineEndpoint  string // 服务端点
+	Timeout             string // 请求超时时间
 }
 
 func New() *Config {
@@ -42,18 +43,22 @@ func New() *Config {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		AI: AIConfig{
-			VolcengineAPIKey:   getEnv("VOLCENGINE_API_KEY", ""),
-			VolcengineEndpoint: getEnv("VOLCENGINE_ENDPOINT", "https://visual.volcengineapi.com"),
-			VolcengineRegion:   getEnv("VOLCENGINE_REGION", "cn-north-1"),
-			Timeout:            getEnv("AI_TIMEOUT", "30s"),
+			VolcengineAccessKey: getEnv("VOLCENGINE_ACCESS_KEY", ""),
+			VolcengineSecretKey: getEnv("VOLCENGINE_SECRET_KEY", ""),
+			VolcengineRegion:    getEnv("VOLCENGINE_REGION", "cn-north-1"),
+			VolcengineEndpoint:  getEnv("VOLCENGINE_ENDPOINT", "https://visual.volcengineapi.com"),
+			Timeout:             getEnv("AI_TIMEOUT", "30s"),
 		},
 	}
 }
 
 // Validate 验证配置的有效性
 func (c *Config) Validate() error {
-	if c.AI.VolcengineAPIKey == "" {
-		return fmt.Errorf("VOLCENGINE_API_KEY is required")
+	if c.AI.VolcengineAccessKey == "" {
+		return fmt.Errorf("VOLCENGINE_ACCESS_KEY is required")
+	}
+	if c.AI.VolcengineSecretKey == "" {
+		return fmt.Errorf("VOLCENGINE_SECRET_KEY is required")
 	}
 	if c.Database.MongoURL == "" {
 		return fmt.Errorf("MONGO_URL is required")
