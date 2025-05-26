@@ -11,16 +11,14 @@ import (
 )
 
 type AIHandler struct {
-	imageTaskService    *service.ImageTaskService
-	volcengineAIService *service.VolcengineAIService
-	queueService        *queue.RedisQueue
+	imageTaskService *service.ImageTaskService
+	queueService     *queue.RedisQueue
 }
 
-func NewAIHandler(imageTaskService *service.ImageTaskService, volcengineAIService *service.VolcengineAIService, queueService *queue.RedisQueue) *AIHandler {
+func NewAIHandler(imageTaskService *service.ImageTaskService, queueService *queue.RedisQueue) *AIHandler {
 	return &AIHandler{
-		imageTaskService:    imageTaskService,
-		volcengineAIService: volcengineAIService,
-		queueService:        queueService,
+		imageTaskService: imageTaskService,
+		queueService:     queueService,
 	}
 }
 
@@ -29,29 +27,64 @@ func parseIntParam(s string) (int, error) {
 	return strconv.Atoi(s)
 }
 
-// 火山引擎即梦AI图像生成请求结构
-type VolcengineImageRequest struct {
-	Prompt  string `json:"prompt" binding:"required"`
-	Model   string `json:"model"`
-	N       int    `json:"n"`
-	Size    string `json:"size"`
-	Quality string `json:"quality"`
-	Style   string `json:"style"`
-	UserID  string `json:"user_id" binding:"required"`
+// AI图像生成请求结构
+type ImageGenerationRequest struct {
+	Prompt   string `json:"prompt" binding:"required"`
+	Model    string `json:"model"`
+	N        int    `json:"n"`
+	Size     string `json:"size"`
+	Quality  string `json:"quality"`
+	Style    string `json:"style"`
+	UserID   string `json:"user_id" binding:"required"`
+	Provider string `json:"provider"` // AI服务提供商：volcengine_jimeng, openai, etc.
 }
 
-// 创建火山引擎即梦AI异步图像生成任务
-func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
-	var req VolcengineImageRequest
+// AI文本生成请求结构
+type TextGenerationRequest struct {
+	Prompt      string  `json:"prompt" binding:"required"`
+	Model       string  `json:"model"`
+	MaxTokens   int     `json:"max_tokens"`
+	Temperature float64 `json:"temperature"`
+	UserID      string  `json:"user_id" binding:"required"`
+	Provider    string  `json:"provider"` // AI服务提供商：volcengine_jimeng, openai, etc.
+}
+
+// AI视频生成请求结构
+type VideoGenerationRequest struct {
+	Prompt   string `json:"prompt" binding:"required"`
+	Model    string `json:"model"`
+	Duration int    `json:"duration"` // 视频时长（秒）
+	Quality  string `json:"quality"`
+	Style    string `json:"style"`
+	UserID   string `json:"user_id" binding:"required"`
+	Provider string `json:"provider"` // AI服务提供商：volcengine_jimeng, openai, etc.
+}
+
+// 创建AI图像生成任务
+func (h *AIHandler) CreateImageTask(c *gin.Context) {
+	var req ImageGenerationRequest
 	if errors := ValidateRequest(c, &req); len(errors) > 0 {
 		ResponseValidationError(c, errors)
 		return
 	}
 
-	// 设置默认模型
+	// 设置默认提供商和模型
+	provider := req.Provider
+	if provider == "" {
+		provider = "volcengine_jimeng" // 默认使用火山引擎
+	}
+
 	model := req.Model
 	if model == "" {
-		model = "doubao-seedream-3.0-t2i"
+		// 根据提供商设置默认模型
+		switch provider {
+		case "volcengine_jimeng":
+			model = "doubao-seedream-3.0-t2i"
+		case "openai":
+			model = "dall-e-3"
+		default:
+			model = "doubao-seedream-3.0-t2i"
+		}
 	}
 
 	// 创建图像任务输入
@@ -80,7 +113,7 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 		TaskID:   task.ID,
 		UserID:   req.UserID,
 		Type:     "image_generation",
-		Provider: "volcengine_jimeng",
+		Provider: provider,
 		Model:    model,
 		Input: map[string]interface{}{
 			"prompt":  req.Prompt,
@@ -107,14 +140,15 @@ func (h *AIHandler) CreateVolcengineImageTask(c *gin.Context) {
 		"data": gin.H{
 			"task_id":  task.ID,
 			"status":   "pending",
-			"provider": "volcengine_jimeng",
+			"provider": provider,
+			"model":    model,
 		},
 		"message": "图像生成任务创建成功",
 	})
 }
 
-// 查询火山引擎即梦AI任务结果
-func (h *AIHandler) GetVolcengineTaskResult(c *gin.Context) {
+// 查询AI图像生成任务结果
+func (h *AIHandler) GetImageTaskResult(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -241,5 +275,84 @@ func (h *AIHandler) DeleteImageTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "任务删除成功",
+	})
+}
+
+// 创建AI文本生成任务
+func (h *AIHandler) CreateTextTask(c *gin.Context) {
+	var req TextGenerationRequest
+	if errors := ValidateRequest(c, &req); len(errors) > 0 {
+		ResponseValidationError(c, errors)
+		return
+	}
+
+	// TODO: 实现文本生成任务创建逻辑
+	// 设置默认提供商和模型
+	provider := req.Provider
+	if provider == "" {
+		provider = "volcengine_jimeng" // 默认使用火山引擎
+	}
+
+	model := req.Model
+	if model == "" {
+		// 根据提供商设置默认模型
+		switch provider {
+		case "volcengine_jimeng":
+			model = "doubao-pro-4k"
+		case "openai":
+			model = "gpt-4"
+		default:
+			model = "doubao-pro-4k"
+		}
+	}
+
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "文本生成功能暂未实现",
+		"message": "该功能正在开发中，敬请期待",
+		"data": gin.H{
+			"provider": provider,
+			"model":    model,
+			"prompt":   req.Prompt,
+		},
+	})
+}
+
+// 创建AI视频生成任务
+func (h *AIHandler) CreateVideoTask(c *gin.Context) {
+	var req VideoGenerationRequest
+	if errors := ValidateRequest(c, &req); len(errors) > 0 {
+		ResponseValidationError(c, errors)
+		return
+	}
+
+	// TODO: 实现视频生成任务创建逻辑
+	// 设置默认提供商和模型
+	provider := req.Provider
+	if provider == "" {
+		provider = "volcengine_jimeng" // 默认使用火山引擎
+	}
+
+	model := req.Model
+	if model == "" {
+		// 根据提供商设置默认模型
+		switch provider {
+		case "volcengine_jimeng":
+			model = "doubao-video-pro"
+		case "openai":
+			model = "sora"
+		default:
+			model = "doubao-video-pro"
+		}
+	}
+
+	c.JSON(http.StatusNotImplemented, gin.H{
+		"error":   "视频生成功能暂未实现",
+		"message": "该功能正在开发中，敬请期待",
+		"data": gin.H{
+			"provider": provider,
+			"model":    model,
+			"prompt":   req.Prompt,
+			"duration": req.Duration,
+		},
 	})
 }

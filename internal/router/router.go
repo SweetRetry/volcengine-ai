@@ -34,14 +34,20 @@ func SetupRoutes(
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
 
-		// AI服务 - 火山引擎即梦AI图像生成
+		// AI服务 - 图像生成
 		ai := v1.Group("/ai")
 		{
-			// 火山引擎即梦AI - 异步图像生成
-			ai.POST("/image/task", aiHandler.CreateVolcengineImageTask)         // 创建图像生成任务
-			ai.GET("/image/result/:task_id", aiHandler.GetVolcengineTaskResult) // 查询任务结果
-			ai.GET("/image/tasks", aiHandler.GetUserImageTasks)                 // 获取用户图像任务列表
-			ai.DELETE("/image/task/:task_id", aiHandler.DeleteImageTask)        // 删除图像任务
+			// AI图像生成 - 异步任务
+			ai.POST("/image/task", aiHandler.CreateImageTask)              // 创建图像生成任务
+			ai.GET("/image/result/:task_id", aiHandler.GetImageTaskResult) // 查询任务结果
+			ai.GET("/image/tasks", aiHandler.GetUserImageTasks)            // 获取用户图像任务列表
+			ai.DELETE("/image/task/:task_id", aiHandler.DeleteImageTask)   // 删除图像任务
+
+			// AI文本生成 - 异步任务 (TODO: 待实现)
+			ai.POST("/text/task", aiHandler.CreateTextTask) // 创建文本生成任务
+
+			// AI视频生成 - 异步任务 (TODO: 待实现)
+			ai.POST("/video/task", aiHandler.CreateVideoTask) // 创建视频生成任务
 		}
 	}
 

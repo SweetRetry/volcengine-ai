@@ -8,23 +8,60 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+
+	"jimeng-go-server/internal/service"
 )
+
+// AI服务提供商接口
+type AIServiceProvider interface {
+	// 获取提供商名称
+	GetProviderName() string
+	// 处理图像生成任务
+	ProcessImageTask(ctx context.Context, taskID string, input map[string]interface{}) error
+	// 处理文本生成任务
+	ProcessTextTask(ctx context.Context, taskID string, input map[string]interface{}) error
+	// 处理视频生成任务
+	ProcessVideoTask(ctx context.Context, taskID string, input map[string]interface{}) error
+}
+
+// 服务注册器
+type ServiceRegistry struct {
+	providers map[string]AIServiceProvider
+}
+
+func NewServiceRegistry() *ServiceRegistry {
+	return &ServiceRegistry{
+		providers: make(map[string]AIServiceProvider),
+	}
+}
+
+func (sr *ServiceRegistry) RegisterProvider(provider AIServiceProvider) {
+	sr.providers[provider.GetProviderName()] = provider
+}
+
+func (sr *ServiceRegistry) GetProvider(name string) (AIServiceProvider, bool) {
+	provider, exists := sr.providers[name]
+	return provider, exists
+}
+
+func (sr *ServiceRegistry) GetAllProviders() map[string]AIServiceProvider {
+	return sr.providers
+}
 
 type RedisQueue struct {
 	client *asynq.Client
 	server *asynq.Server
 	opt    asynq.RedisConnOpt
-	// 添加服务依赖，用于更新任务状态
-	imageTaskService interface {
-		UpdateImageTaskStatus(ctx context.Context, taskID, status string, imageURL, errorMsg string) error
-	}
+	// 使用服务注册器替代具体的服务依赖
+	serviceRegistry  *ServiceRegistry
+	imageTaskService *service.ImageTaskService
 }
 
 // 任务类型常量
 const (
 	TypeTextGeneration  = "ai:text_generation"
 	TypeImageGeneration = "ai:image_generation"
-	TypeTranslation     = "ai:translation"
+	TypeVideoGeneration = "ai:video_generation"
 )
 
 // 任务载荷结构
@@ -37,9 +74,10 @@ type AITaskPayload struct {
 	Provider string                 `json:"provider"`
 }
 
-func NewRedisQueue(redisURL string, imageTaskService interface {
-	UpdateImageTaskStatus(ctx context.Context, taskID, status string, imageURL, errorMsg string) error
-},
+func NewRedisQueue(
+	redisURL string,
+	imageTaskService *service.ImageTaskService,
+	serviceRegistry *ServiceRegistry,
 ) *RedisQueue {
 	// 解析Redis URL
 	opt, err := asynq.ParseRedisURI(redisURL)
@@ -66,6 +104,7 @@ func NewRedisQueue(redisURL string, imageTaskService interface {
 		client:           client,
 		server:           server,
 		opt:              opt,
+		serviceRegistry:  serviceRegistry,
 		imageTaskService: imageTaskService,
 	}
 }
@@ -113,7 +152,7 @@ func (r *RedisQueue) StartWorker(ctx context.Context) {
 	// 注册任务处理器
 	mux.HandleFunc(TypeTextGeneration, r.handleTextGeneration)
 	mux.HandleFunc(TypeImageGeneration, r.handleImageGeneration)
-	mux.HandleFunc(TypeTranslation, r.handleTranslation)
+	mux.HandleFunc(TypeVideoGeneration, r.handleVideoGeneration)
 
 	logrus.Info("队列工作器启动中...")
 	if err := r.server.Start(mux); err != nil {
@@ -138,11 +177,21 @@ func (r *RedisQueue) handleTextGeneration(ctx context.Context, task *asynq.Task)
 		return err
 	}
 
-	logrus.Infof("处理文本生成任务: %s, 用户: %s", payload.TaskID, payload.UserID)
+	logrus.Infof("处理文本生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
-	// 这里会在service层实现具体的AI调用逻辑
-	// 现在只是记录日志
-	time.Sleep(2 * time.Second) // 模拟AI处理时间
+	// 获取对应的AI服务提供商
+	provider, exists := r.serviceRegistry.GetProvider(payload.Provider)
+	if !exists {
+		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
+		logrus.Errorf(errorMsg)
+		return fmt.Errorf(errorMsg)
+	}
+
+	// 调用提供商的文本生成处理方法
+	if err := provider.ProcessTextTask(ctx, payload.TaskID, payload.Input); err != nil {
+		logrus.Errorf("文本生成任务处理失败: %v", err)
+		return err
+	}
 
 	logrus.Infof("文本生成任务完成: %s", payload.TaskID)
 	return nil
@@ -155,42 +204,52 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 		return err
 	}
 
-	logrus.Infof("处理图像生成任务: %s, 用户: %s", payload.TaskID, payload.UserID)
+	logrus.Infof("处理图像生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
-	// 这里应该调用实际的AI服务
-	// 为了演示，我们模拟处理过程
-	time.Sleep(5 * time.Second)
-
-	// 模拟生成的图像URL
-	imageURL := fmt.Sprintf("https://example.com/generated-image-%s.jpg", payload.TaskID)
-
-	logrus.Infof("图像生成任务完成: %s, 图像URL: %s", payload.TaskID, imageURL)
-
-	// 更新数据库中的任务状态
-	if r.imageTaskService != nil {
-		if err := r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "completed", imageURL, ""); err != nil {
-			logrus.Errorf("更新任务状态失败: %v", err)
-			return err
-		}
-		logrus.Infof("任务状态已更新为完成: %s", payload.TaskID)
+	// 获取对应的AI服务提供商
+	provider, exists := r.serviceRegistry.GetProvider(payload.Provider)
+	if !exists {
+		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
+		logrus.Errorf(errorMsg)
+		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", errorMsg)
+		return fmt.Errorf(errorMsg)
 	}
 
+	// 调用提供商的图像生成处理方法
+	if err := provider.ProcessImageTask(ctx, payload.TaskID, payload.Input); err != nil {
+		logrus.Errorf("图像生成任务处理失败: %v", err)
+		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", err.Error())
+		return err
+	}
+
+	logrus.Infof("图像生成任务完成: %s", payload.TaskID)
 	return nil
 }
 
-// 翻译任务处理器
-func (r *RedisQueue) handleTranslation(ctx context.Context, task *asynq.Task) error {
+// 视频生成任务处理器
+func (r *RedisQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task) error {
 	var payload AITaskPayload
 	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
 		return err
 	}
 
-	logrus.Infof("处理翻译任务: %s, 用户: %s", payload.TaskID, payload.UserID)
+	logrus.Infof("处理视频生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
-	// 模拟翻译处理时间
-	time.Sleep(1 * time.Second)
+	// 获取对应的AI服务提供商
+	provider, exists := r.serviceRegistry.GetProvider(payload.Provider)
+	if !exists {
+		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
+		logrus.Errorf(errorMsg)
+		return fmt.Errorf(errorMsg)
+	}
 
-	logrus.Infof("翻译任务完成: %s", payload.TaskID)
+	// 调用提供商的视频生成处理方法
+	if err := provider.ProcessVideoTask(ctx, payload.TaskID, payload.Input); err != nil {
+		logrus.Errorf("视频生成任务处理失败: %v", err)
+		return err
+	}
+
+	logrus.Infof("视频生成任务完成: %s", payload.TaskID)
 	return nil
 }
 

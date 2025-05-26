@@ -50,11 +50,22 @@ func main() {
 	userService := service.NewUserService(db)
 	imageTaskService := service.NewImageTaskService(db)
 
-	// 初始化队列（传入imageTaskService）
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService)
+	// 创建服务注册器
+	serviceRegistry := queue.NewServiceRegistry()
+
+	// 创建并注册火山引擎AI服务提供商
+	volcengineProvider := service.NewVolcengineAIProvider(volcengineAIService, imageTaskService)
+	serviceRegistry.RegisterProvider(volcengineProvider)
+
+	// 创建并注册OpenAI服务提供商（示例）
+	// openaiProvider := service.NewOpenAIProvider(cfg.OpenAI.APIKey)
+	// serviceRegistry.RegisterProvider(openaiProvider)
+
+	// 初始化队列（使用服务注册器）
+	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService, serviceRegistry)
 
 	// 初始化处理器
-	aiHandler := handler.NewAIHandler(imageTaskService, volcengineAIService, queueClient)
+	aiHandler := handler.NewAIHandler(imageTaskService, queueClient)
 	userHandler := handler.NewUserHandler(userService)
 
 	// 设置Gin模式
