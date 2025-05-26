@@ -24,32 +24,20 @@ type MongoUser struct {
 	UpdatedAt time.Time          `bson:"updated_at"`
 }
 
-type MongoTask struct {
-	ID             primitive.ObjectID `bson:"_id,omitempty"`
-	UserID         string             `bson:"user_id"`
-	Type           string             `bson:"type"`
-	Status         string             `bson:"status"`
-	Input          string             `bson:"input"`
-	Output         string             `bson:"output"`
-	ErrorMsg       string             `bson:"error_msg"`
-	ExternalTaskID string             `bson:"external_task_id"`
-	CreatedAt      time.Time          `bson:"created_at"`
-	UpdatedAt      time.Time          `bson:"updated_at"`
-	CompletedAt    *time.Time         `bson:"completed_at,omitempty"`
-}
-
-type MongoAIRequest struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`
-	UserID    string             `bson:"user_id"`
-	TaskID    string             `bson:"task_id"`
-	Provider  string             `bson:"provider"`
-	Model     string             `bson:"model"`
-	Prompt    string             `bson:"prompt"`
-	Response  string             `bson:"response"`
-	Tokens    int                `bson:"tokens"`
-	Cost      float64            `bson:"cost"`
-	Duration  int64              `bson:"duration"`
-	CreatedAt time.Time          `bson:"created_at"`
+type MongoImageTask struct {
+	ID       primitive.ObjectID `bson:"_id,omitempty"`
+	UserID   string             `bson:"user_id"`
+	Prompt   string             `bson:"prompt"`
+	Model    string             `bson:"model"`
+	Size     string             `bson:"size"`
+	Quality  string             `bson:"quality"`
+	Style    string             `bson:"style"`
+	N        int                `bson:"n"`
+	Status   string             `bson:"status"`
+	ImageURL string             `bson:"image_url"`
+	Error    string             `bson:"error"`
+	Created  time.Time          `bson:"created"`
+	Updated  time.Time          `bson:"updated"`
 }
 
 func NewMongoDB(uri string) (*MongoDB, error) {
@@ -87,20 +75,10 @@ func (m *MongoDB) createIndexes() error {
 		return err
 	}
 
-	// 任务用户ID索引
-	taskCollection := m.database.Collection("tasks")
-	_, err = taskCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+	// 图像任务用户ID索引
+	imageTaskCollection := m.database.Collection("image_tasks")
+	_, err = imageTaskCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "user_id", Value: 1}},
-	})
-	if err != nil {
-		return err
-	}
-
-	// AI请求用户ID和任务ID索引
-	aiRequestCollection := m.database.Collection("ai_requests")
-	_, err = aiRequestCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
-		{Keys: bson.D{{Key: "user_id", Value: 1}}},
-		{Keys: bson.D{{Key: "task_id", Value: 1}}},
 	})
 
 	return err
@@ -196,65 +174,68 @@ func (m *MongoDB) DeleteUser(ctx context.Context, id string) error {
 	return err
 }
 
-// 任务相关方法
-func (m *MongoDB) CreateTask(ctx context.Context, task *Task) error {
-	mongoTask := &MongoTask{
-		UserID:         task.UserID,
-		Type:           task.Type,
-		Status:         task.Status,
-		Input:          task.Input,
-		Output:         task.Output,
-		ErrorMsg:       task.ErrorMsg,
-		ExternalTaskID: task.ExternalTaskID,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+// 图像任务相关方法
+func (m *MongoDB) CreateImageTask(ctx context.Context, task *ImageTask) error {
+	mongoTask := &MongoImageTask{
+		UserID:  task.UserID,
+		Prompt:  task.Prompt,
+		Model:   task.Model,
+		Size:    task.Size,
+		Quality: task.Quality,
+		Style:   task.Style,
+		N:       task.N,
+		Status:  task.Status,
+		Created: time.Now(),
+		Updated: time.Now(),
 	}
 
-	collection := m.database.Collection("tasks")
+	collection := m.database.Collection("image_tasks")
 	result, err := collection.InsertOne(ctx, mongoTask)
 	if err != nil {
 		return err
 	}
 
 	task.ID = result.InsertedID.(primitive.ObjectID).Hex()
-	task.CreatedAt = mongoTask.CreatedAt
-	task.UpdatedAt = mongoTask.UpdatedAt
+	task.Created = mongoTask.Created
+	task.Updated = mongoTask.Updated
 	return nil
 }
 
-func (m *MongoDB) GetTaskByID(ctx context.Context, id string) (*Task, error) {
+func (m *MongoDB) GetImageTaskByID(ctx context.Context, id string) (*ImageTask, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, err
 	}
 
-	var mongoTask MongoTask
-	collection := m.database.Collection("tasks")
+	var mongoTask MongoImageTask
+	collection := m.database.Collection("image_tasks")
 	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&mongoTask)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Task{
-		ID:             mongoTask.ID.Hex(),
-		UserID:         mongoTask.UserID,
-		Type:           mongoTask.Type,
-		Status:         mongoTask.Status,
-		Input:          mongoTask.Input,
-		Output:         mongoTask.Output,
-		ErrorMsg:       mongoTask.ErrorMsg,
-		ExternalTaskID: mongoTask.ExternalTaskID,
-		CreatedAt:      mongoTask.CreatedAt,
-		UpdatedAt:      mongoTask.UpdatedAt,
-		CompletedAt:    mongoTask.CompletedAt,
+	return &ImageTask{
+		ID:       mongoTask.ID.Hex(),
+		UserID:   mongoTask.UserID,
+		Prompt:   mongoTask.Prompt,
+		Model:    mongoTask.Model,
+		Size:     mongoTask.Size,
+		Quality:  mongoTask.Quality,
+		Style:    mongoTask.Style,
+		N:        mongoTask.N,
+		Status:   mongoTask.Status,
+		ImageURL: mongoTask.ImageURL,
+		Error:    mongoTask.Error,
+		Created:  mongoTask.Created,
+		Updated:  mongoTask.Updated,
 	}, nil
 }
 
-func (m *MongoDB) GetTasksByUserID(ctx context.Context, userID string, limit, offset int) ([]*Task, error) {
-	collection := m.database.Collection("tasks")
+func (m *MongoDB) GetImageTasksByUserID(ctx context.Context, userID string, limit, offset int) ([]*ImageTask, error) {
+	collection := m.database.Collection("image_tasks")
 
 	opts := options.Find().
-		SetSort(bson.D{{Key: "created_at", Value: -1}}).
+		SetSort(bson.D{{Key: "created", Value: -1}}).
 		SetLimit(int64(limit)).
 		SetSkip(int64(offset))
 
@@ -264,157 +245,62 @@ func (m *MongoDB) GetTasksByUserID(ctx context.Context, userID string, limit, of
 	}
 	defer cursor.Close(ctx)
 
-	var mongoTasks []MongoTask
+	var mongoTasks []MongoImageTask
 	if err := cursor.All(ctx, &mongoTasks); err != nil {
 		return nil, err
 	}
 
-	tasks := make([]*Task, len(mongoTasks))
+	tasks := make([]*ImageTask, len(mongoTasks))
 	for i, mongoTask := range mongoTasks {
-		tasks[i] = &Task{
-			ID:             mongoTask.ID.Hex(),
-			UserID:         mongoTask.UserID,
-			Type:           mongoTask.Type,
-			Status:         mongoTask.Status,
-			Input:          mongoTask.Input,
-			Output:         mongoTask.Output,
-			ErrorMsg:       mongoTask.ErrorMsg,
-			ExternalTaskID: mongoTask.ExternalTaskID,
-			CreatedAt:      mongoTask.CreatedAt,
-			UpdatedAt:      mongoTask.UpdatedAt,
-			CompletedAt:    mongoTask.CompletedAt,
+		tasks[i] = &ImageTask{
+			ID:       mongoTask.ID.Hex(),
+			UserID:   mongoTask.UserID,
+			Prompt:   mongoTask.Prompt,
+			Model:    mongoTask.Model,
+			Size:     mongoTask.Size,
+			Quality:  mongoTask.Quality,
+			Style:    mongoTask.Style,
+			N:        mongoTask.N,
+			Status:   mongoTask.Status,
+			ImageURL: mongoTask.ImageURL,
+			Error:    mongoTask.Error,
+			Created:  mongoTask.Created,
+			Updated:  mongoTask.Updated,
 		}
 	}
 
 	return tasks, nil
 }
 
-func (m *MongoDB) UpdateTask(ctx context.Context, task *Task) error {
-	objectID, err := primitive.ObjectIDFromHex(task.ID)
+func (m *MongoDB) UpdateImageTaskStatus(ctx context.Context, id, status, imageURL, errorMsg string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err
 	}
 
 	update := bson.M{
 		"$set": bson.M{
-			"type":             task.Type,
-			"status":           task.Status,
-			"input":            task.Input,
-			"output":           task.Output,
-			"error_msg":        task.ErrorMsg,
-			"external_task_id": task.ExternalTaskID,
-			"updated_at":       time.Now(),
-			"completed_at":     task.CompletedAt,
+			"status":    status,
+			"image_url": imageURL,
+			"error":     errorMsg,
+			"updated":   time.Now(),
 		},
 	}
 
-	collection := m.database.Collection("tasks")
+	collection := m.database.Collection("image_tasks")
 	_, err = collection.UpdateOne(ctx, bson.M{"_id": objectID}, update)
 	return err
 }
 
-func (m *MongoDB) DeleteTask(ctx context.Context, id string) error {
+func (m *MongoDB) DeleteImageTask(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return err
 	}
 
-	collection := m.database.Collection("tasks")
+	collection := m.database.Collection("image_tasks")
 	_, err = collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	return err
-}
-
-// AI请求记录相关方法
-func (m *MongoDB) CreateAIRequest(ctx context.Context, request *AIRequest) error {
-	mongoRequest := &MongoAIRequest{
-		UserID:    request.UserID,
-		TaskID:    request.TaskID,
-		Provider:  request.Provider,
-		Model:     request.Model,
-		Prompt:    request.Prompt,
-		Response:  request.Response,
-		Tokens:    request.Tokens,
-		Cost:      request.Cost,
-		Duration:  request.Duration,
-		CreatedAt: time.Now(),
-	}
-
-	collection := m.database.Collection("ai_requests")
-	result, err := collection.InsertOne(ctx, mongoRequest)
-	if err != nil {
-		return err
-	}
-
-	request.ID = result.InsertedID.(primitive.ObjectID).Hex()
-	request.CreatedAt = mongoRequest.CreatedAt
-	return nil
-}
-
-func (m *MongoDB) GetAIRequestByID(ctx context.Context, id string) (*AIRequest, error) {
-	objectID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, err
-	}
-
-	var mongoRequest MongoAIRequest
-	collection := m.database.Collection("ai_requests")
-	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&mongoRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AIRequest{
-		ID:        mongoRequest.ID.Hex(),
-		UserID:    mongoRequest.UserID,
-		TaskID:    mongoRequest.TaskID,
-		Provider:  mongoRequest.Provider,
-		Model:     mongoRequest.Model,
-		Prompt:    mongoRequest.Prompt,
-		Response:  mongoRequest.Response,
-		Tokens:    mongoRequest.Tokens,
-		Cost:      mongoRequest.Cost,
-		Duration:  mongoRequest.Duration,
-		CreatedAt: mongoRequest.CreatedAt,
-	}, nil
-}
-
-func (m *MongoDB) GetAIRequestsByUserID(ctx context.Context, userID string, limit, offset int) ([]*AIRequest, error) {
-	collection := m.database.Collection("ai_requests")
-
-	opts := options.Find().
-		SetSort(bson.D{{Key: "created_at", Value: -1}}).
-		SetLimit(int64(limit)).
-		SetSkip(int64(offset))
-
-	cursor, err := collection.Find(ctx, bson.M{"user_id": userID}, opts)
-	if err != nil {
-		return nil, err
-	}
-	defer cursor.Close(ctx)
-
-	var mongoRequests []MongoAIRequest
-	if err := cursor.All(ctx, &mongoRequests); err != nil {
-		return nil, err
-	}
-
-	requests := make([]*AIRequest, len(mongoRequests))
-	for i, mongoRequest := range mongoRequests {
-		requests[i] = &AIRequest{
-			ID:        mongoRequest.ID.Hex(),
-			UserID:    mongoRequest.UserID,
-			TaskID:    mongoRequest.TaskID,
-			Provider:  mongoRequest.Provider,
-			Model:     mongoRequest.Model,
-			Prompt:    mongoRequest.Prompt,
-			Response:  mongoRequest.Response,
-			Tokens:    mongoRequest.Tokens,
-			Cost:      mongoRequest.Cost,
-			Duration:  mongoRequest.Duration,
-			CreatedAt: mongoRequest.CreatedAt,
-		}
-	}
-
-	return requests, nil
 }
 
 func (m *MongoDB) Close() error {

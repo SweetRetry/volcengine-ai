@@ -10,21 +10,17 @@ import (
 	"jimeng-go-server/internal/service"
 )
 
+// 重构后的AI Handler - 更简洁
 type AIHandler struct {
+	taskFactory      *AITaskFactory
 	imageTaskService *service.ImageTaskService
-	queueService     *queue.RedisQueue
 }
 
 func NewAIHandler(imageTaskService *service.ImageTaskService, queueService *queue.RedisQueue) *AIHandler {
 	return &AIHandler{
+		taskFactory:      NewAITaskFactory(imageTaskService, queueService),
 		imageTaskService: imageTaskService,
-		queueService:     queueService,
 	}
-}
-
-// parseIntParam 解析整数参数
-func parseIntParam(s string) (int, error) {
-	return strconv.Atoi(s)
 }
 
 // AI图像生成请求结构
@@ -60,94 +56,22 @@ type VideoGenerationRequest struct {
 	Provider string `json:"provider"` // AI服务提供商：volcengine_jimeng, openai, etc.
 }
 
-// 创建AI图像生成任务
+// 创建图像任务 - 使用工厂模式
 func (h *AIHandler) CreateImageTask(c *gin.Context) {
-	var req ImageGenerationRequest
-	if errors := ValidateRequest(c, &req); len(errors) > 0 {
-		ResponseValidationError(c, errors)
-		return
-	}
-
-	// 设置默认提供商和模型
-	provider := req.Provider
-	if provider == "" {
-		provider = "volcengine_jimeng" // 默认使用火山引擎
-	}
-
-	model := req.Model
-	if model == "" {
-		// 根据提供商设置默认模型
-		switch provider {
-		case "volcengine_jimeng":
-			model = "doubao-seedream-3.0-t2i"
-		case "openai":
-			model = "dall-e-3"
-		default:
-			model = "doubao-seedream-3.0-t2i"
-		}
-	}
-
-	// 创建图像任务输入
-	input := &service.ImageTaskInput{
-		Prompt:  req.Prompt,
-		UserID:  req.UserID,
-		Model:   model,
-		Size:    req.Size,
-		Quality: req.Quality,
-		Style:   req.Style,
-		N:       req.N,
-	}
-
-	// 在任务系统中创建记录
-	task, err := h.imageTaskService.CreateImageTask(c.Request.Context(), input)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建图像任务记录失败",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	// 构建队列任务载荷
-	payload := &queue.AITaskPayload{
-		TaskID:   task.ID,
-		UserID:   req.UserID,
-		Type:     "image_generation",
-		Provider: provider,
-		Model:    model,
-		Input: map[string]interface{}{
-			"prompt":  req.Prompt,
-			"size":    req.Size,
-			"quality": req.Quality,
-			"style":   req.Style,
-			"n":       req.N,
-		},
-	}
-
-	// 将任务放入Redis队列
-	if err := h.queueService.EnqueueTask(c.Request.Context(), queue.TypeImageGeneration, payload); err != nil {
-		// 如果入队失败，删除已创建的任务记录
-		h.imageTaskService.DeleteImageTask(c.Request.Context(), task.ID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "任务入队失败",
-			"message": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data": gin.H{
-			"task_id":  task.ID,
-			"status":   "pending",
-			"provider": provider,
-			"model":    model,
-		},
-		"message": "图像生成任务创建成功",
-	})
+	h.taskFactory.CreateTask(c, TaskTypeImage)
 }
 
-// 查询AI图像生成任务结果
+// 创建文本任务 - 使用工厂模式
+func (h *AIHandler) CreateTextTask(c *gin.Context) {
+	h.taskFactory.CreateTask(c, TaskTypeText)
+}
+
+// 创建视频任务 - 使用工厂模式
+func (h *AIHandler) CreateVideoTask(c *gin.Context) {
+	h.taskFactory.CreateTask(c, TaskTypeVideo)
+}
+
+// 通用任务结果查询 - 可以查询任何类型的任务
 func (h *AIHandler) GetImageTaskResult(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
@@ -157,7 +81,7 @@ func (h *AIHandler) GetImageTaskResult(c *gin.Context) {
 		return
 	}
 
-	// 获取图像任务详情
+	// 目前只支持图像任务，未来可以扩展
 	result, err := h.imageTaskService.GetImageTask(c.Request.Context(), taskID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -167,22 +91,13 @@ func (h *AIHandler) GetImageTaskResult(c *gin.Context) {
 		return
 	}
 
-	// 如果任务已经完成或失败，直接返回结果
-	if result.Status == "completed" || result.Status == "failed" {
-		if result.Status == "failed" {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":   "任务执行失败",
-				"message": result.Error,
-				"data": gin.H{
-					"task_id": taskID,
-					"status":  "failed",
-					"created": result.Created,
-				},
-			})
-			return
-		}
+	h.respondWithTaskResult(c, taskID, result)
+}
 
-		// 任务完成
+// 统一的任务结果响应
+func (h *AIHandler) respondWithTaskResult(c *gin.Context, taskID string, result *service.ImageTaskResult) {
+	switch result.Status {
+	case "completed":
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data": gin.H{
@@ -193,23 +108,30 @@ func (h *AIHandler) GetImageTaskResult(c *gin.Context) {
 			},
 			"message": "任务完成",
 		})
-		return
+	case "failed":
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "任务执行失败",
+			"message": result.Error,
+			"data": gin.H{
+				"task_id": taskID,
+				"status":  "failed",
+				"created": result.Created,
+			},
+		})
+	default:
+		c.JSON(http.StatusAccepted, gin.H{
+			"success": true,
+			"data": gin.H{
+				"task_id": taskID,
+				"status":  "processing",
+				"message": "任务处理中，请稍后查询",
+				"created": result.Created,
+			},
+		})
 	}
-
-	// 如果任务还在处理中，返回处理中状态
-	// 现在使用Redis队列处理，任务状态由队列工作器更新
-	c.JSON(http.StatusAccepted, gin.H{
-		"success": true,
-		"data": gin.H{
-			"task_id": taskID,
-			"status":  "processing",
-			"message": "任务处理中，请稍后查询",
-			"created": result.Created,
-		},
-	})
 }
 
-// 获取用户的图像任务列表
+// 获取用户任务列表 - 支持分页
 func (h *AIHandler) GetUserImageTasks(c *gin.Context) {
 	userID := c.Query("user_id")
 	if userID == "" {
@@ -219,19 +141,8 @@ func (h *AIHandler) GetUserImageTasks(c *gin.Context) {
 		return
 	}
 
-	// 分页参数
-	limit := 20
-	offset := 0
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := parseIntParam(l); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
-	}
-	if o := c.Query("offset"); o != "" {
-		if parsed, err := parseIntParam(o); err == nil && parsed >= 0 {
-			offset = parsed
-		}
-	}
+	// 解析分页参数
+	limit, offset := h.parsePaginationParams(c)
 
 	tasks, err := h.imageTaskService.GetUserImageTasks(c.Request.Context(), userID, limit, offset)
 	if err != nil {
@@ -253,7 +164,7 @@ func (h *AIHandler) GetUserImageTasks(c *gin.Context) {
 	})
 }
 
-// 删除图像任务
+// 删除任务
 func (h *AIHandler) DeleteImageTask(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
@@ -263,8 +174,7 @@ func (h *AIHandler) DeleteImageTask(c *gin.Context) {
 		return
 	}
 
-	err := h.imageTaskService.DeleteImageTask(c.Request.Context(), taskID)
-	if err != nil {
+	if err := h.imageTaskService.DeleteImageTask(c.Request.Context(), taskID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "删除任务失败",
 			"message": err.Error(),
@@ -278,81 +188,21 @@ func (h *AIHandler) DeleteImageTask(c *gin.Context) {
 	})
 }
 
-// 创建AI文本生成任务
-func (h *AIHandler) CreateTextTask(c *gin.Context) {
-	var req TextGenerationRequest
-	if errors := ValidateRequest(c, &req); len(errors) > 0 {
-		ResponseValidationError(c, errors)
-		return
-	}
+// 解析分页参数的辅助方法
+func (h *AIHandler) parsePaginationParams(c *gin.Context) (limit, offset int) {
+	limit = 20 // 默认值
+	offset = 0 // 默认值
 
-	// TODO: 实现文本生成任务创建逻辑
-	// 设置默认提供商和模型
-	provider := req.Provider
-	if provider == "" {
-		provider = "volcengine_jimeng" // 默认使用火山引擎
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
 	}
-
-	model := req.Model
-	if model == "" {
-		// 根据提供商设置默认模型
-		switch provider {
-		case "volcengine_jimeng":
-			model = "doubao-pro-4k"
-		case "openai":
-			model = "gpt-4"
-		default:
-			model = "doubao-pro-4k"
+	if o := c.Query("offset"); o != "" {
+		if parsed, err := strconv.Atoi(o); err == nil && parsed >= 0 {
+			offset = parsed
 		}
 	}
 
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "文本生成功能暂未实现",
-		"message": "该功能正在开发中，敬请期待",
-		"data": gin.H{
-			"provider": provider,
-			"model":    model,
-			"prompt":   req.Prompt,
-		},
-	})
-}
-
-// 创建AI视频生成任务
-func (h *AIHandler) CreateVideoTask(c *gin.Context) {
-	var req VideoGenerationRequest
-	if errors := ValidateRequest(c, &req); len(errors) > 0 {
-		ResponseValidationError(c, errors)
-		return
-	}
-
-	// TODO: 实现视频生成任务创建逻辑
-	// 设置默认提供商和模型
-	provider := req.Provider
-	if provider == "" {
-		provider = "volcengine_jimeng" // 默认使用火山引擎
-	}
-
-	model := req.Model
-	if model == "" {
-		// 根据提供商设置默认模型
-		switch provider {
-		case "volcengine_jimeng":
-			model = "doubao-video-pro"
-		case "openai":
-			model = "sora"
-		default:
-			model = "doubao-video-pro"
-		}
-	}
-
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "视频生成功能暂未实现",
-		"message": "该功能正在开发中，敬请期待",
-		"data": gin.H{
-			"provider": provider,
-			"model":    model,
-			"prompt":   req.Prompt,
-			"duration": req.Duration,
-		},
-	})
+	return limit, offset
 }

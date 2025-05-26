@@ -7,7 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// OpenAIProvider OpenAI服务提供商适配器
+// OpenAIProvider OpenAI服务提供商适配器 (示例实现)
+// 注意：这是一个示例实现，用于演示如何添加新的AI服务提供商
+// 实际使用时需要集成真实的OpenAI API
 type OpenAIProvider struct {
 	// 这里可以添加OpenAI相关的配置和客户端
 	apiKey string

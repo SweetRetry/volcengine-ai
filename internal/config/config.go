@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -41,12 +42,26 @@ func New() *Config {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		AI: AIConfig{
-			VolcengineAPIKey:   getEnv("VOLCENGINE_API_KEY", "WkRreU1HUmxNRFUzTXpJM05EQTBNVGsxTldVNE9XUmtaV0ZpWm1VeE0yWQ=="),
+			VolcengineAPIKey:   getEnv("VOLCENGINE_API_KEY", ""),
 			VolcengineEndpoint: getEnv("VOLCENGINE_ENDPOINT", "https://visual.volcengineapi.com"),
 			VolcengineRegion:   getEnv("VOLCENGINE_REGION", "cn-north-1"),
 			Timeout:            getEnv("AI_TIMEOUT", "30s"),
 		},
 	}
+}
+
+// Validate 验证配置的有效性
+func (c *Config) Validate() error {
+	if c.AI.VolcengineAPIKey == "" {
+		return fmt.Errorf("VOLCENGINE_API_KEY is required")
+	}
+	if c.Database.MongoURL == "" {
+		return fmt.Errorf("MONGO_URL is required")
+	}
+	if c.Redis.URL == "" {
+		return fmt.Errorf("REDIS_URL is required")
+	}
+	return nil
 }
 
 func getEnv(key, defaultValue string) string {

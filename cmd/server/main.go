@@ -30,6 +30,11 @@ func main() {
 	// 初始化配置
 	cfg := config.New()
 
+	// 验证配置
+	if err := cfg.Validate(); err != nil {
+		logrus.Fatal("配置验证失败: ", err)
+	}
+
 	// 设置日志级别
 	level, err := logrus.ParseLevel(cfg.LogLevel)
 	if err != nil {
