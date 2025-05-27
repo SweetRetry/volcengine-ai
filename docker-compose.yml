@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # 🚀 API服务器
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ENVIRONMENT=production
+      - MONGO_URL=mongodb://mongodb:27017/volcengine_db
+      - REDIS_URL=redis://redis:6379
+      - ARK_API_KEY=${ARK_API_KEY}
+      - AI_TIMEOUT=30s
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - redis
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+
+  # ⚡ 队列工作器
+  queue-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    environment:
+      - ENVIRONMENT=production
+      - MONGO_URL=mongodb://mongodb:27017/volcengine_db
+      - REDIS_URL=redis://redis:6379
+      - ARK_API_KEY=${ARK_API_KEY}
+      - AI_TIMEOUT=30s
+      - LOG_LEVEL=info
+      - QUEUE_CONCURRENCY=10
+    depends_on:
+      - mongodb
+      - redis
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+    deploy:
+      replicas: 2  # 运行2个工作器实例
+
+  # 🗄️ MongoDB数据库
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=volcengine_db
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+
+  # 📮 Redis缓存和队列
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+
+  # 📊 Redis监控面板（可选）
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+    profiles:
+      - monitoring
+
+  # 📈 Prometheus监控（可选）
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+    profiles:
+      - monitoring
+
+  # 📊 Grafana仪表板（可选）
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - volcengine-network
+    profiles:
+      - monitoring
+
+# 🌐 网络配置
+networks:
+  volcengine-network:
+    driver: bridge
+
+# 💾 数据卷
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local 
