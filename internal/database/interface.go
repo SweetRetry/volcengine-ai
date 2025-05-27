@@ -41,8 +41,6 @@ type ImageTask struct {
 	Prompt   string    `json:"prompt"`
 	Model    string    `json:"model"`
 	Size     string    `json:"size"`
-	Quality  string    `json:"quality"`
-	Style    string    `json:"style"`
 	N        int       `json:"n"`
 	Status   string    `json:"status"`    // pending, processing, completed, failed
 	ImageURL string    `json:"image_url"` // 生成的图像URL

@@ -20,6 +20,7 @@ type ImageTaskInput struct {
 	UserID string `json:"user_id"`
 	Model  string `json:"model,omitempty"`
 	Size   string `json:"size,omitempty"`
+	N      int    `json:"n,omitempty"`
 }
 
 // ImageTaskResult 图像生成任务的结果
@@ -113,6 +114,7 @@ func (s *ImageTaskService) GetImageTaskInput(ctx context.Context, taskID string)
 		Prompt: task.Prompt,
 		UserID: task.UserID,
 		Model:  task.Model,
+		N:      task.N,
 		Size:   task.Size,
 	}
 

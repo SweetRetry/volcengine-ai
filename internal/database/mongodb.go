@@ -30,8 +30,6 @@ type MongoImageTask struct {
 	Prompt   string             `bson:"prompt"`
 	Model    string             `bson:"model"`
 	Size     string             `bson:"size"`
-	Quality  string             `bson:"quality"`
-	Style    string             `bson:"style"`
 	N        int                `bson:"n"`
 	Status   string             `bson:"status"`
 	ImageURL string             `bson:"image_url"`
@@ -181,8 +179,6 @@ func (m *MongoDB) CreateImageTask(ctx context.Context, task *ImageTask) error {
 		Prompt:  task.Prompt,
 		Model:   task.Model,
 		Size:    task.Size,
-		Quality: task.Quality,
-		Style:   task.Style,
 		N:       task.N,
 		Status:  task.Status,
 		Created: time.Now(),
@@ -220,8 +216,6 @@ func (m *MongoDB) GetImageTaskByID(ctx context.Context, id string) (*ImageTask, 
 		Prompt:   mongoTask.Prompt,
 		Model:    mongoTask.Model,
 		Size:     mongoTask.Size,
-		Quality:  mongoTask.Quality,
-		Style:    mongoTask.Style,
 		N:        mongoTask.N,
 		Status:   mongoTask.Status,
 		ImageURL: mongoTask.ImageURL,
@@ -258,8 +252,6 @@ func (m *MongoDB) GetImageTasksByUserID(ctx context.Context, userID string, limi
 			Prompt:   mongoTask.Prompt,
 			Model:    mongoTask.Model,
 			Size:     mongoTask.Size,
-			Quality:  mongoTask.Quality,
-			Style:    mongoTask.Style,
 			N:        mongoTask.N,
 			Status:   mongoTask.Status,
 			ImageURL: mongoTask.ImageURL,
