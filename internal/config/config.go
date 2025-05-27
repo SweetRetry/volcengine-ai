@@ -23,9 +23,10 @@ type RedisConfig struct {
 }
 
 type AIConfig struct {
-	// 火山引擎即梦AI配置
-	VolcengineAccessKey string // Access Key ID
-	VolcengineSecretKey string // Secret Access Key
+	// 火山方舟AI配置
+	VolcengineAPIKey    string // 火山方舟API Key
+	VolcengineAccessKey string // Access Key ID (备用)
+	VolcengineSecretKey string // Secret Access Key (备用)
 	Timeout             string // 请求超时时间
 }
 
@@ -41,6 +42,7 @@ func New() *Config {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		AI: AIConfig{
+			VolcengineAPIKey:    getEnv("ARK_API_KEY", ""),
 			VolcengineAccessKey: getEnv("VOLCENGINE_ACCESS_KEY", ""),
 			VolcengineSecretKey: getEnv("VOLCENGINE_SECRET_KEY", ""),
 			Timeout:             getEnv("AI_TIMEOUT", "30s"),
@@ -50,11 +52,8 @@ func New() *Config {
 
 // Validate 验证配置的有效性
 func (c *Config) Validate() error {
-	if c.AI.VolcengineAccessKey == "" {
-		return fmt.Errorf("VOLCENGINE_ACCESS_KEY is required")
-	}
-	if c.AI.VolcengineSecretKey == "" {
-		return fmt.Errorf("VOLCENGINE_SECRET_KEY is required")
+	if c.AI.VolcengineAPIKey == "" {
+		return fmt.Errorf("ARK_API_KEY is required")
 	}
 	if c.Database.MongoURL == "" {
 		return fmt.Errorf("MONGO_URL is required")

@@ -40,95 +40,44 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 		return err
 	}
 
-	// 构建即梦AI请求参数
-	request := &JimengImageRequest{
-		Prompt:    taskInput.Prompt,
-		Width:     512,  // 默认宽度
-		Height:    512,  // 默认高度
-		ReturnURL: true, // 返回图片链接
+	// 构建图像生成请求参数
+	request := &ImageRequest{
+		Prompt: taskInput.Prompt,
+		Model:  "doubao-seedream-3-0-t2i-250415", // 使用豆包图像生成模型
+		Size:   v.parseOptimalSizeString(taskInput.Size),
+		N:      1, // 生成1张图片
 	}
 
-	// 智能设置文本扩写参数
-	request.UsePreLLM = v.shouldUsePreLLM(taskInput.Prompt)
-
-	// 解析尺寸参数并设置推荐的宽高比例
-	request.Width, request.Height = v.parseOptimalSize(taskInput.Size)
-
-	// 智能设置超分参数（根据尺寸和性能需求）
-	request.UseSR = v.shouldUseSR(request.Width, request.Height)
-
-	// 提交火山引擎即梦AI任务
-	volcengineTaskID, err := v.volcengineAIService.SubmitImageTask(ctx, request)
+	// 直接生成图像（火山方舟是同步API）
+	result, err := v.volcengineAIService.GenerateImage(ctx, request)
 	if err != nil {
-		logrus.Errorf("提交火山引擎即梦AI任务失败: %v", err)
+		logrus.Errorf("火山方舟图像生成失败: %v", err)
 		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
 		return err
 	}
 
-	logrus.Infof("火山引擎即梦AI任务提交成功: %s -> %s (尺寸: %dx%d, 扩写: %t, 超分: %t)",
-		taskID, volcengineTaskID, request.Width, request.Height, request.UsePreLLM, request.UseSR)
+	logrus.Infof("火山方舟图像生成成功: %s (尺寸: %s)", taskID, request.Size)
 
-	// 轮询查询火山引擎任务结果
-	maxAttempts := 60 // 最多轮询60次，每次间隔5秒，总共5分钟
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		// 查询火山引擎任务结果
-		result, err := v.volcengineAIService.GetImageTaskResult(ctx, volcengineTaskID)
-		if err != nil {
-			logrus.Errorf("查询火山引擎任务结果失败: %v", err)
-			if attempt == maxAttempts-1 {
-				v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
-				return err
-			}
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		// 检查任务状态
-		if result.Code != 0 {
-			logrus.Errorf("火山引擎任务失败: %s (code: %d)", result.Message, result.Code)
-			v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", result.Message)
-			return fmt.Errorf("火山引擎任务失败: %s (code: %d)", result.Message, result.Code)
-		}
-
-		// 检查是否有图像URL
-		if result.Data.PrimaryImageUrl != "" {
-			logrus.Infof("图像生成任务完成: %s, 图像URL: %s", taskID, result.Data.PrimaryImageUrl)
-
-			// 更新数据库中的任务状态
-			if err := v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "completed", result.Data.PrimaryImageUrl, ""); err != nil {
-				logrus.Errorf("更新任务状态失败: %v", err)
-				return err
-			}
-
-			logrus.Infof("任务状态已更新为完成: %s", taskID)
-			return nil
-		}
-
-		// 如果有多个图像URL，使用第一个
-		if len(result.Data.ImageUrls) > 0 {
-			imageURL := result.Data.ImageUrls[0]
-			logrus.Infof("图像生成任务完成: %s, 图像URL: %s", taskID, imageURL)
-
-			// 更新数据库中的任务状态
-			if err := v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "completed", imageURL, ""); err != nil {
-				logrus.Errorf("更新任务状态失败: %v", err)
-				return err
-			}
-
-			logrus.Infof("任务状态已更新为完成: %s", taskID)
-			return nil
-		}
-
-		// 任务还在处理中，等待后继续轮询
-		logrus.Infof("火山引擎任务处理中: %s, 等待5秒后重试 (尝试 %d/%d)", volcengineTaskID, attempt+1, maxAttempts)
-		time.Sleep(5 * time.Second)
+	// 检查是否有生成的图像
+	if len(result.Data) == 0 {
+		errorMsg := "未生成任何图像"
+		logrus.Errorf("图像生成失败: %s", errorMsg)
+		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", errorMsg)
+		return fmt.Errorf(errorMsg)
 	}
 
-	// 超时处理
-	errorMsg := "任务处理超时，超过5分钟未完成"
-	logrus.Errorf("图像生成任务超时: %s", taskID)
-	v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", errorMsg)
-	return fmt.Errorf(errorMsg)
+	// 获取第一张图片的URL
+	imageURL := result.Data[0].URL
+	logrus.Infof("图像生成任务完成: %s, 图像URL: %s", taskID, imageURL)
+
+	// 更新数据库中的任务状态
+	if err := v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "completed", imageURL, ""); err != nil {
+		logrus.Errorf("更新任务状态失败: %v", err)
+		return err
+	}
+
+	logrus.Infof("任务状态已更新为完成: %s", taskID)
+	return nil
 }
 
 // shouldUsePreLLM 智能判断是否使用文本扩写
@@ -170,6 +119,26 @@ func (v *VolcengineAIProvider) parseOptimalSize(size string) (width, height int)
 	default:
 		// 默认使用推荐的1:1比例
 		return 512, 512
+	}
+}
+
+// parseOptimalSizeString 解析并返回最优的图像尺寸字符串
+func (v *VolcengineAIProvider) parseOptimalSizeString(size string) string {
+	// 火山方舟支持的尺寸格式
+	switch size {
+	case "1:1", "512x512", "":
+		return "1024x1024" // 1:1 比例
+	case "4:3":
+		return "1024x768" // 4:3 比例
+	case "3:4":
+		return "768x1024" // 3:4 比例
+	case "16:9":
+		return "1024x576" // 16:9 比例
+	case "9:16":
+		return "576x1024" // 9:16 比例
+	default:
+		// 默认使用1:1比例
+		return "1024x1024"
 	}
 }
 
