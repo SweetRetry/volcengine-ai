@@ -12,13 +12,13 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 
-	"jimeng-go-server/internal/config"
-	"jimeng-go-server/internal/database"
-	"jimeng-go-server/internal/handler"
-	"jimeng-go-server/internal/middleware"
-	"jimeng-go-server/internal/queue"
-	"jimeng-go-server/internal/router"
-	"jimeng-go-server/internal/service"
+	"volcengine-go-server/internal/config"
+	"volcengine-go-server/internal/database"
+	"volcengine-go-server/internal/handler"
+	"volcengine-go-server/internal/middleware"
+	"volcengine-go-server/internal/queue"
+	"volcengine-go-server/internal/router"
+	"volcengine-go-server/internal/service"
 )
 
 func main() {

@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"jimeng-go-server/internal/config"
-	"jimeng-go-server/internal/queue"
-	"jimeng-go-server/internal/service"
+	"volcengine-go-server/internal/config"
+	"volcengine-go-server/internal/queue"
+	"volcengine-go-server/internal/service"
 )
 
 type AIHandler struct {

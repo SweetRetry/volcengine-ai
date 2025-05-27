@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"jimeng-go-server/internal/service"
+	"volcengine-go-server/internal/service"
 )
 
 type UserHandler struct {

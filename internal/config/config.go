@@ -36,7 +36,7 @@ func New() *Config {
 		Environment: getEnv("ENVIRONMENT", "development"),
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
 		Database: DatabaseConfig{
-			MongoURL: getEnv("MONGO_URL", "mongodb://localhost:27017/jimeng_db"),
+			MongoURL: getEnv("MONGO_URL", "mongodb://localhost:27017/volcengine_db"),
 		},
 		Redis: RedisConfig{
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),

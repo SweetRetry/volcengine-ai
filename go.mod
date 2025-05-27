@@ -1,4 +1,4 @@
-module jimeng-go-server
+module volcengine-go-server
 
 go 1.24
 

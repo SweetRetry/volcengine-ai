@@ -9,8 +9,8 @@
 go.work
 
 # 编译输出
-jimeng-server
-jimeng-server_unix
+volcengine-server
+volcengine-server_unix
 
 # 测试覆盖率
 coverage.out

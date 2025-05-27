@@ -9,8 +9,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 
-	"jimeng-go-server/internal/config"
-	"jimeng-go-server/internal/service"
+	"volcengine-go-server/internal/config"
+	"volcengine-go-server/internal/service"
 )
 
 // AI服务提供商接口

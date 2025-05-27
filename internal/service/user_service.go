@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"jimeng-go-server/internal/database"
+	"volcengine-go-server/internal/database"
 )
 
 type UserService struct {

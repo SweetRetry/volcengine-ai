@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"jimeng-go-server/internal/config"
-	"jimeng-go-server/internal/database"
+	"volcengine-go-server/internal/config"
+	"volcengine-go-server/internal/database"
 )
 
 // ImageTaskService 专门处理图像生成任务的服务

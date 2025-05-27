@@ -9,12 +9,12 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
 # 应用变量
-BINARY_NAME=jimeng-server
+BINARY_NAME=volcengine-server
 BINARY_UNIX=$(BINARY_NAME)_unix
 MAIN_PATH=cmd/server/main.go
 
 # Docker变量
-DOCKER_IMAGE=jimeng-go-server
+DOCKER_IMAGE=volcengine-go-server
 DOCKER_TAG=latest
 
 # 默认目标

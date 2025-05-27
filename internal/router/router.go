@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"jimeng-go-server/internal/handler"
+	"volcengine-go-server/internal/handler"
 )
 
 func SetupRoutes(

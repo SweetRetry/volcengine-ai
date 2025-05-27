@@ -51,7 +51,7 @@ func NewMongoDB(uri string) (*MongoDB, error) {
 		return nil, err
 	}
 
-	database := client.Database("jimeng_db")
+	database := client.Database("volcengine_db")
 
 	// 创建索引
 	m := &MongoDB{client: client, database: database}
