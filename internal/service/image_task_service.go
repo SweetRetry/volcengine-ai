@@ -16,13 +16,10 @@ type ImageTaskService struct {
 
 // ImageTaskInput 图像生成任务的输入参数
 type ImageTaskInput struct {
-	Prompt  string `json:"prompt"`
-	UserID  string `json:"user_id"`
-	Model   string `json:"model,omitempty"`
-	Size    string `json:"size,omitempty"`
-	Quality string `json:"quality,omitempty"`
-	Style   string `json:"style,omitempty"`
-	N       int    `json:"n,omitempty"`
+	Prompt string `json:"prompt"`
+	UserID string `json:"user_id"`
+	Model  string `json:"model,omitempty"`
+	Size   string `json:"size,omitempty"`
 }
 
 // ImageTaskResult 图像生成任务的结果
@@ -44,14 +41,11 @@ func NewImageTaskService(db database.Database) *ImageTaskService {
 func (s *ImageTaskService) CreateImageTask(ctx context.Context, input *ImageTaskInput) (*database.ImageTask, error) {
 	// 创建图像任务记录
 	task := &database.ImageTask{
-		UserID:  input.UserID,
-		Prompt:  input.Prompt,
-		Model:   input.Model,
-		Size:    input.Size,
-		Quality: input.Quality,
-		Style:   input.Style,
-		N:       input.N,
-		Status:  config.TaskStatusPending,
+		UserID: input.UserID,
+		Prompt: input.Prompt,
+		Model:  input.Model,
+		Size:   input.Size,
+		Status: config.TaskStatusPending,
 	}
 
 	if err := s.db.CreateImageTask(ctx, task); err != nil {
@@ -116,13 +110,10 @@ func (s *ImageTaskService) GetImageTaskInput(ctx context.Context, taskID string)
 	}
 
 	input := &ImageTaskInput{
-		Prompt:  task.Prompt,
-		UserID:  task.UserID,
-		Model:   task.Model,
-		Size:    task.Size,
-		Quality: task.Quality,
-		Style:   task.Style,
-		N:       task.N,
+		Prompt: task.Prompt,
+		UserID: task.UserID,
+		Model:  task.Model,
+		Size:   task.Size,
 	}
 
 	return input, nil

@@ -18,10 +18,7 @@ type AITaskRequest struct {
 	Provider string `json:"provider"`
 
 	// 图像生成特有字段
-	N       int    `json:"n,omitempty"`
-	Size    string `json:"size,omitempty"`
-	Quality string `json:"quality,omitempty"`
-	Style   string `json:"style,omitempty"`
+	Size string `json:"size,omitempty"`
 
 	// 文本生成特有字段
 	MaxTokens   int     `json:"max_tokens,omitempty"`
@@ -124,13 +121,10 @@ func (f *AITaskFactory) CreateTask(c *gin.Context, taskType AITaskType) {
 func (f *AITaskFactory) createImageTask(c *gin.Context, req *AITaskRequest, provider, model string) {
 	// 创建图像任务输入
 	input := &service.ImageTaskInput{
-		Prompt:  req.Prompt,
-		UserID:  req.UserID,
-		Model:   model,
-		Size:    req.Size,
-		Quality: req.Quality,
-		Style:   req.Style,
-		N:       req.N,
+		Prompt: req.Prompt,
+		UserID: req.UserID,
+		Model:  model,
+		Size:   req.Size,
 	}
 
 	// 在任务系统中创建记录
@@ -151,11 +145,8 @@ func (f *AITaskFactory) createImageTask(c *gin.Context, req *AITaskRequest, prov
 		Provider: provider,
 		Model:    model,
 		Input: map[string]interface{}{
-			"prompt":  req.Prompt,
-			"size":    req.Size,
-			"quality": req.Quality,
-			"style":   req.Style,
-			"n":       req.N,
+			"prompt": req.Prompt,
+			"size":   req.Size,
 		},
 	}
 

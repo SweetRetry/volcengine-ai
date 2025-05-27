@@ -13,13 +13,16 @@ const (
 	OpenAIVideoModel = "sora"
 )
 
-// 图像尺寸常量
+// 图像尺寸常量 - 火山引擎支持的尺寸
 const (
 	ImageSize1x1     = "1024x1024" // 1:1 比例
-	ImageSize4x3     = "1024x768"  // 4:3 比例
-	ImageSize3x4     = "768x1024"  // 3:4 比例
-	ImageSize16x9    = "1024x576"  // 16:9 比例
-	ImageSize9x16    = "576x1024"  // 9:16 比例
+	ImageSize3x4     = "864x1152"  // 3:4 比例
+	ImageSize4x3     = "1152x864"  // 4:3 比例
+	ImageSize16x9    = "1280x720"  // 16:9 比例
+	ImageSize9x16    = "720x1280"  // 9:16 比例
+	ImageSize2x3     = "832x1248"  // 2:3 比例
+	ImageSize3x2     = "1248x832"  // 3:2 比例
+	ImageSize21x9    = "1512x648"  // 21:9 比例
 	DefaultImageSize = ImageSize1x1
 )
 

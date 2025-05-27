@@ -21,7 +21,7 @@ type VolcengineAIService struct {
 }
 
 // 图像生成请求结构
-type ImageRequest struct {
+type VolcengineImageRequest struct {
 	Prompt string `json:"prompt"`          // 必填：文本描述
 	Model  string `json:"model,omitempty"` // 模型ID，默认使用豆包图像生成模型
 	Size   string `json:"size,omitempty"`  // 图像尺寸，如"1024x1024"
@@ -29,7 +29,7 @@ type ImageRequest struct {
 }
 
 // 图像生成响应结构
-type ImageResponse struct {
+type VolcengineImageResponse struct {
 	Data    []ImageData `json:"data"`
 	Created int64       `json:"created"`
 }
@@ -59,7 +59,7 @@ func NewVolcengineAIService(cfg config.AIConfig) *VolcengineAIService {
 }
 
 // GenerateImage 生成图像（同步）
-func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *ImageRequest) (*ImageResponse, error) {
+func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *VolcengineImageRequest) (*VolcengineImageResponse, error) {
 	s.logger.Infof("生成图像: prompt=%s", request.Prompt)
 
 	// 设置默认模型
@@ -74,10 +74,13 @@ func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *ImageR
 		size = config.DefaultImageSize
 	}
 
+	// 设置水印为false
+	watermark := false
 	generateReq := model.GenerateImagesRequest{
-		Model:  modelID,
-		Prompt: request.Prompt,
-		Size:   &size,
+		Model:     modelID,
+		Prompt:    request.Prompt,
+		Size:      &size,
+		Watermark: &watermark,
 	}
 
 	// 调用火山方舟图像生成API
@@ -88,7 +91,7 @@ func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *ImageR
 	}
 
 	// 转换响应格式
-	response := &ImageResponse{
+	response := &VolcengineImageResponse{
 		Data:    make([]ImageData, len(imagesResponse.Data)),
 		Created: time.Now().Unix(),
 	}

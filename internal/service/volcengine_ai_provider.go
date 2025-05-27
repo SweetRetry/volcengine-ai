@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"jimeng-go-server/internal/config"
-
 	"github.com/sirupsen/logrus"
+
+	"jimeng-go-server/internal/config"
 )
 
 // VolcengineAIProvider 火山引擎AI服务提供商适配器
@@ -43,7 +43,7 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 	}
 
 	// 构建图像生成请求参数
-	request := &ImageRequest{
+	request := &VolcengineImageRequest{
 		Prompt: taskInput.Prompt,
 		Model:  config.VolcengineImageModel,
 		Size:   v.parseOptimalSizeString(taskInput.Size),
@@ -86,16 +86,22 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 func (v *VolcengineAIProvider) parseOptimalSizeString(size string) string {
 	// 火山方舟支持的尺寸格式
 	switch size {
-	case "1:1", "512x512", "":
+	case "1:1", "1024x1024", "":
 		return config.ImageSize1x1
-	case "4:3":
-		return config.ImageSize4x3
-	case "3:4":
+	case "3:4", "864x1152":
 		return config.ImageSize3x4
-	case "16:9":
+	case "4:3", "1152x864":
+		return config.ImageSize4x3
+	case "16:9", "1280x720":
 		return config.ImageSize16x9
-	case "9:16":
+	case "9:16", "720x1280":
 		return config.ImageSize9x16
+	case "2:3", "832x1248":
+		return config.ImageSize2x3
+	case "3:2", "1248x832":
+		return config.ImageSize3x2
+	case "21:9", "1512x648":
+		return config.ImageSize21x9
 	default:
 		// 默认使用1:1比例
 		return config.DefaultImageSize
