@@ -80,48 +80,6 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 	return nil
 }
 
-// shouldUsePreLLM 智能判断是否使用文本扩写
-func (v *VolcengineAIProvider) shouldUsePreLLM(prompt string) bool {
-	// 根据官方建议：prompt过短（长度小于4）推荐开启扩写
-	if len(prompt) < 4 {
-		return true
-	}
-
-	// prompt较长时，可以考虑关闭扩写以保证多样性
-	// 这里设置一个阈值，超过100个字符的长prompt建议关闭扩写
-	if len(prompt) > 100 {
-		return false
-	}
-
-	// 中等长度的prompt默认开启扩写
-	return true
-}
-
-// parseOptimalSize 解析并返回最优的图像尺寸
-func (v *VolcengineAIProvider) parseOptimalSize(size string) (width, height int) {
-	// 根据官方推荐的超分前比例及对应宽高
-	switch size {
-	case "1:1", "512x512", "":
-		return 512, 512 // 1:1 比例
-	case "4:3", "512x384":
-		return 512, 384 // 4:3 比例
-	case "3:4", "384x512":
-		return 384, 512 // 3:4 比例
-	case "3:2", "512x341":
-		return 512, 341 // 3:2 比例
-	case "2:3", "341x512":
-		return 341, 512 // 2:3 比例
-	case "16:9", "512x288":
-		return 512, 288 // 16:9 比例
-	case "9:16", "288x512":
-		return 288, 512 // 9:16 比例
-
-	default:
-		// 默认使用推荐的1:1比例
-		return 512, 512
-	}
-}
-
 // parseOptimalSizeString 解析并返回最优的图像尺寸字符串
 func (v *VolcengineAIProvider) parseOptimalSizeString(size string) string {
 	// 火山方舟支持的尺寸格式
@@ -140,24 +98,6 @@ func (v *VolcengineAIProvider) parseOptimalSizeString(size string) string {
 		// 默认使用1:1比例
 		return "1024x1024"
 	}
-}
-
-// shouldUseSR 智能判断是否使用超分功能
-func (v *VolcengineAIProvider) shouldUseSR(width, height int) bool {
-	// 根据官方建议：超分会增加延迟，但能提升图像质量
-	// 对于较小尺寸的图像，建议开启超分以获得更好的效果
-	// 对于已经较大的尺寸，可以关闭超分以减少延迟
-
-	totalPixels := width * height
-
-	// 小于等于512x512的图像建议开启超分
-	if totalPixels <= 512*512 {
-		return true
-	}
-
-	// 大于512x512的图像可以关闭超分以减少延迟
-	// 特别是接近768x768的大尺寸图像
-	return false
 }
 
 // ProcessTextTask 处理文本生成任务
