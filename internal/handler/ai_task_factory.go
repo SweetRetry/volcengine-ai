@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"jimeng-go-server/internal/config"
 	"jimeng-go-server/internal/queue"
 	"jimeng-go-server/internal/service"
 )
@@ -57,38 +58,38 @@ func (f *AITaskFactory) getDefaultProvider(req *AITaskRequest) string {
 	if req.Provider != "" {
 		return req.Provider
 	}
-	return "volcengine_jimeng" // 默认使用火山引擎
+	return config.DefaultAIProvider
 }
 
 // 获取默认模型
 func (f *AITaskFactory) getDefaultModel(provider string, taskType AITaskType) string {
 	if provider == "" {
-		provider = "volcengine_jimeng"
+		provider = config.DefaultAIProvider
 	}
 
 	switch provider {
-	case "volcengine_jimeng":
+	case "volcengine":
 		switch taskType {
 		case TaskTypeImage:
-			return "doubao-seedream-3.0-t2i"
+			return config.VolcengineImageModel
 		case TaskTypeText:
-			return "doubao-pro-4k"
+			return config.VolcengineTextModel
 		case TaskTypeVideo:
-			return "doubao-video-pro"
+			return config.VolcengineVideoModel
 		}
 	case "openai":
 		switch taskType {
 		case TaskTypeImage:
-			return "dall-e-3"
+			return config.OpenAIImageModel
 		case TaskTypeText:
-			return "gpt-4"
+			return config.OpenAITextModel
 		case TaskTypeVideo:
-			return "sora"
+			return config.OpenAIVideoModel
 		}
 	}
 
-	// 默认返回图像模型
-	return "doubao-seedream-3.0-t2i"
+	// 默认返回火山引擎图像模型
+	return config.VolcengineImageModel
 }
 
 // 创建AI任务的通用方法
@@ -146,7 +147,7 @@ func (f *AITaskFactory) createImageTask(c *gin.Context, req *AITaskRequest, prov
 	payload := &queue.AITaskPayload{
 		TaskID:   task.ID,
 		UserID:   req.UserID,
-		Type:     "image_generation",
+		Type:     string(TaskTypeImage) + "_generation",
 		Provider: provider,
 		Model:    model,
 		Input: map[string]interface{}{
@@ -173,7 +174,7 @@ func (f *AITaskFactory) createImageTask(c *gin.Context, req *AITaskRequest, prov
 		"success": true,
 		"data": gin.H{
 			"task_id":  task.ID,
-			"status":   "pending",
+			"status":   config.TaskStatusPending,
 			"provider": provider,
 			"model":    model,
 		},

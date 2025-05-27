@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"jimeng-go-server/internal/config"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,7 +29,7 @@ func NewVolcengineAIProvider(
 
 // GetProviderName 获取提供商名称
 func (v *VolcengineAIProvider) GetProviderName() string {
-	return "volcengine_jimeng"
+	return "volcengine"
 }
 
 // ProcessImageTask 处理图像生成任务
@@ -43,7 +45,7 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 	// 构建图像生成请求参数
 	request := &ImageRequest{
 		Prompt: taskInput.Prompt,
-		Model:  "doubao-seedream-3-0-t2i-250415", // 使用豆包图像生成模型
+		Model:  config.VolcengineImageModel,
 		Size:   v.parseOptimalSizeString(taskInput.Size),
 		N:      1, // 生成1张图片
 	}
@@ -85,18 +87,18 @@ func (v *VolcengineAIProvider) parseOptimalSizeString(size string) string {
 	// 火山方舟支持的尺寸格式
 	switch size {
 	case "1:1", "512x512", "":
-		return "1024x1024" // 1:1 比例
+		return config.ImageSize1x1
 	case "4:3":
-		return "1024x768" // 4:3 比例
+		return config.ImageSize4x3
 	case "3:4":
-		return "768x1024" // 3:4 比例
+		return config.ImageSize3x4
 	case "16:9":
-		return "1024x576" // 16:9 比例
+		return config.ImageSize16x9
 	case "9:16":
-		return "576x1024" // 9:16 比例
+		return config.ImageSize9x16
 	default:
 		// 默认使用1:1比例
-		return "1024x1024"
+		return config.DefaultImageSize
 	}
 }
 

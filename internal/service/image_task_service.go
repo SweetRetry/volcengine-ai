@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"jimeng-go-server/internal/config"
 	"jimeng-go-server/internal/database"
 )
 
@@ -50,7 +51,7 @@ func (s *ImageTaskService) CreateImageTask(ctx context.Context, input *ImageTask
 		Quality: input.Quality,
 		Style:   input.Style,
 		N:       input.N,
-		Status:  "pending",
+		Status:  config.TaskStatusPending,
 	}
 
 	if err := s.db.CreateImageTask(ctx, task); err != nil {

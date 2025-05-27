@@ -9,6 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 
+	"jimeng-go-server/internal/config"
 	"jimeng-go-server/internal/service"
 )
 
@@ -88,11 +89,11 @@ func NewRedisQueue(
 	client := asynq.NewClient(opt)
 
 	server := asynq.NewServer(opt, asynq.Config{
-		Concurrency: 10,
+		Concurrency: config.QueueConcurrency,
 		Queues: map[string]int{
-			"critical": 6,
-			"default":  3,
-			"low":      1,
+			"critical": config.QueueCriticalWeight,
+			"default":  config.QueueDefaultWeight,
+			"low":      config.QueueLowWeight,
 		},
 		ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
 			logrus.Errorf("任务执行失败: %v, 错误: %v", task.Type(), err)

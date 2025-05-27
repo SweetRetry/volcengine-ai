@@ -84,7 +84,7 @@ serviceRegistry.RegisterProvider(myProvider)
 {
     "prompt": "生成一张美丽的风景图",
     "user_id": "user123",
-    "provider": "volcengine_jimeng"  // 或 "openai", "my_ai_service"
+    "provider": "volcengine"  // 或 "openai", "my_ai_service"
 }
 ```
 
@@ -117,7 +117,7 @@ serviceRegistry.RegisterProvider(myProvider)
 
 | 提供商名称 | 标识符 | 支持的任务类型 | 状态 |
 |-----------|--------|---------------|------|
-| 火山引擎即梦 | `volcengine_jimeng` | 图像生成 | ✅ 已实现 |
+| 火山引擎即梦 | `volcengine` | 图像生成 | ✅ 已实现 |
 | OpenAI | `openai` | 图像、文本、视频 | 🚧 示例实现 |
 
 ## 扩展指南

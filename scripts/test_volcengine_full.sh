@@ -115,7 +115,7 @@ create_image_task() {
         -d "{
             \"prompt\": \"$selected_prompt\",
             \"user_id\": \"$USER_ID\",
-            \"provider\": \"volcengine_jimeng\",
+            \"provider\": \"volcengine\",
             \"model\": \"doubao-seedream-3.0-t2i\",
             \"size\": \"512x512\",
             \"quality\": \"standard\"

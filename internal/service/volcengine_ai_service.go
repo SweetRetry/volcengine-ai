@@ -65,13 +65,13 @@ func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *ImageR
 	// 设置默认模型
 	modelID := request.Model
 	if modelID == "" {
-		modelID = "doubao-seedream-3-0-t2i-250415" // 豆包图像生成模型
+		modelID = config.VolcengineImageModel
 	}
 
 	// 构建请求
 	size := request.Size
 	if size == "" {
-		size = "1024x1024"
+		size = config.DefaultImageSize
 	}
 
 	generateReq := model.GenerateImagesRequest{
@@ -101,32 +101,6 @@ func (s *VolcengineAIService) GenerateImage(ctx context.Context, request *ImageR
 
 	s.logger.Infof("图像生成成功，生成了 %d 张图片", len(response.Data))
 	return response, nil
-}
-
-// SubmitImageTask 提交图像生成任务（异步，为了兼容性保留）
-func (s *VolcengineAIService) SubmitImageTask(ctx context.Context, request *ImageRequest) (string, error) {
-	// 火山方舟是同步API，这里直接调用生成图像并返回第一张图片的URL作为任务ID
-	response, err := s.GenerateImage(ctx, request)
-	if err != nil {
-		return "", err
-	}
-
-	if len(response.Data) > 0 {
-		return response.Data[0].URL, nil
-	}
-
-	return "", fmt.Errorf("未生成任何图片")
-}
-
-// GetImageTaskResult 查询图像生成任务结果（异步，为了兼容性保留）
-func (s *VolcengineAIService) GetImageTaskResult(ctx context.Context, taskID string) (*ImageResponse, error) {
-	// 由于火山方舟是同步API，这里直接返回包含URL的响应
-	return &ImageResponse{
-		Data: []ImageData{
-			{URL: taskID}, // taskID实际上是图片URL
-		},
-		Created: time.Now().Unix(),
-	}, nil
 }
 
 // HealthCheck 健康检查

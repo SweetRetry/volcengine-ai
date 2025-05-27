@@ -37,7 +37,7 @@ TASK_RESPONSE=$(curl -s -X POST "$SERVER_URL/api/v1/ai/image/task" \
   -d "{
     \"prompt\": \"一只可爱的小猫\",
     \"user_id\": \"$USER_ID\",
-    \"provider\": \"volcengine_jimeng\",
+    \"provider\": \"volcengine\",
     \"model\": \"doubao-seedream-3.0-t2i\",
     \"size\": \"512x512\"
   }")
