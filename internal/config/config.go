@@ -26,8 +26,6 @@ type AIConfig struct {
 	// 火山引擎即梦AI配置
 	VolcengineAccessKey string // Access Key ID
 	VolcengineSecretKey string // Secret Access Key
-	VolcengineRegion    string // 区域，如 cn-north-1
-	VolcengineEndpoint  string // 服务端点
 	Timeout             string // 请求超时时间
 }
 
@@ -45,8 +43,6 @@ func New() *Config {
 		AI: AIConfig{
 			VolcengineAccessKey: getEnv("VOLCENGINE_ACCESS_KEY", ""),
 			VolcengineSecretKey: getEnv("VOLCENGINE_SECRET_KEY", ""),
-			VolcengineRegion:    getEnv("VOLCENGINE_REGION", "cn-north-1"),
-			VolcengineEndpoint:  getEnv("VOLCENGINE_ENDPOINT", "https://visual.volcengineapi.com"),
 			Timeout:             getEnv("AI_TIMEOUT", "30s"),
 		},
 	}

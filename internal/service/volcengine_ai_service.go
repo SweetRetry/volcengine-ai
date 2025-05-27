@@ -55,9 +55,6 @@ func NewVolcengineAIService(cfg config.AIConfig) *VolcengineAIService {
 	visualClient.Client.SetAccessKey(cfg.VolcengineAccessKey)
 	visualClient.Client.SetSecretKey(cfg.VolcengineSecretKey)
 
-	// 设置区域
-	visualClient.SetRegion(cfg.VolcengineRegion)
-
 	return &VolcengineAIService{
 		config:       cfg,
 		visualClient: visualClient,
