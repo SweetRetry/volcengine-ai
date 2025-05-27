@@ -62,4 +62,4 @@ func (s *UserService) DeleteUser(ctx context.Context, id string) error {
 		return fmt.Errorf("删除用户失败: %w", err)
 	}
 	return nil
-} 
+}

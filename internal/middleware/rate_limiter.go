@@ -65,7 +65,7 @@ func RateLimiterMiddleware() gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		
+
 		if !limiter.Allow(clientIP) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":   "请求过于频繁",
@@ -77,4 +77,4 @@ func RateLimiterMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
-} 
+}

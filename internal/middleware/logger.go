@@ -8,14 +8,14 @@ import (
 func Logger() gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
 		logrus.WithFields(logrus.Fields{
-			"status_code":  param.StatusCode,
-			"latency":      param.Latency,
-			"client_ip":    param.ClientIP,
-			"method":       param.Method,
-			"path":         param.Path,
-			"error":        param.ErrorMessage,
-			"body_size":    param.BodySize,
-			"user_agent":   param.Request.UserAgent(),
+			"status_code": param.StatusCode,
+			"latency":     param.Latency,
+			"client_ip":   param.ClientIP,
+			"method":      param.Method,
+			"path":        param.Path,
+			"error":       param.ErrorMessage,
+			"body_size":   param.BodySize,
+			"user_agent":  param.Request.UserAgent(),
 		}).Info("HTTP请求")
 
 		return ""
@@ -25,8 +25,8 @@ func Logger() gin.HandlerFunc {
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, recovered interface{}) {
 		logrus.WithFields(logrus.Fields{
-			"error": recovered,
-			"path":  c.Request.URL.Path,
+			"error":  recovered,
+			"path":   c.Request.URL.Path,
 			"method": c.Request.Method,
 		}).Error("服务器内部错误")
 
@@ -35,4 +35,4 @@ func Recovery() gin.HandlerFunc {
 			"message": "请稍后重试",
 		})
 	})
-} 
+}

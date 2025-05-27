@@ -109,21 +109,37 @@ deploy:
 	$(MAKE) build-linux
 	# 这里添加具体的部署脚本
 
+# Redis队列管理
+redis-queue-status:
+	@echo "查看Redis队列状态..."
+	./scripts/clear_redis_queue.sh --show-only
+
+redis-queue-clear:
+	@echo "清理Redis队列数据..."
+	./scripts/clear_redis_queue.sh
+
+redis-queue-clear-force:
+	@echo "强制清理Redis队列数据（无需确认）..."
+	echo "y" | ./scripts/clear_redis_queue.sh
+
 # 帮助信息
 help:
 	@echo "可用的命令:"
-	@echo "  install         - 安装Go依赖"
-	@echo "  build          - 构建应用"
-	@echo "  build-linux    - 构建Linux版本"
-	@echo "  run            - 运行应用"
-	@echo "  dev            - 开发模式运行（使用Air热重载）"
-	@echo "  test           - 运行测试"
-	@echo "  test-coverage  - 运行测试并生成覆盖率报告"
-	@echo "  clean          - 清理构建文件"
-	@echo "  fmt            - 格式化代码"
-	@echo "  lint           - 代码检查"
-	@echo "  docker-build   - 构建Docker镜像"
-	@echo "  docker-run     - 运行Docker容器"
-	@echo "  docs           - 生成API文档"
-	@echo "  tools          - 安装开发工具"
-	@echo "  help           - 显示帮助信息" 
+	@echo "  install              - 安装Go依赖"
+	@echo "  build               - 构建应用"
+	@echo "  build-linux         - 构建Linux版本"
+	@echo "  run                 - 运行应用"
+	@echo "  dev                 - 开发模式运行（使用Air热重载）"
+	@echo "  test                - 运行测试"
+	@echo "  test-coverage       - 运行测试并生成覆盖率报告"
+	@echo "  clean               - 清理构建文件"
+	@echo "  fmt                 - 格式化代码"
+	@echo "  lint                - 代码检查"
+	@echo "  docker-build        - 构建Docker镜像"
+	@echo "  docker-run          - 运行Docker容器"
+	@echo "  docs                - 生成API文档"
+	@echo "  tools               - 安装开发工具"
+	@echo "  redis-queue-status  - 查看Redis队列状态"
+	@echo "  redis-queue-clear   - 清理Redis队列数据"
+	@echo "  redis-queue-clear-force - 强制清理Redis队列数据（无需确认）"
+	@echo "  help                - 显示帮助信息" 

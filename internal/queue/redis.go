@@ -184,13 +184,15 @@ func (r *RedisQueue) handleTextGeneration(ctx context.Context, task *asynq.Task)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
 		logrus.Errorf(errorMsg)
-		return fmt.Errorf(errorMsg)
+		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		return fmt.Errorf("未找到AI服务提供商: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用提供商的文本生成处理方法
 	if err := provider.ProcessTextTask(ctx, payload.TaskID, payload.Input); err != nil {
 		logrus.Errorf("文本生成任务处理失败: %v", err)
-		return err
+		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		return fmt.Errorf("文本生成任务处理失败: %v: %w", err, asynq.SkipRetry)
 	}
 
 	logrus.Infof("文本生成任务完成: %s", payload.TaskID)
@@ -212,14 +214,16 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
 		logrus.Errorf(errorMsg)
 		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", errorMsg)
-		return fmt.Errorf(errorMsg)
+		// 返回SkipRetry错误，让asynq将任务标记为archived而不是processed
+		return fmt.Errorf("未找到AI服务提供商: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用提供商的图像生成处理方法
 	if err := provider.ProcessImageTask(ctx, payload.TaskID, payload.Input); err != nil {
 		logrus.Errorf("图像生成任务处理失败: %v", err)
 		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", err.Error())
-		return err
+		// 返回SkipRetry错误，让asynq将任务标记为archived而不是processed
+		return fmt.Errorf("图像生成任务处理失败: %v: %w", err, asynq.SkipRetry)
 	}
 
 	logrus.Infof("图像生成任务完成: %s", payload.TaskID)
@@ -240,13 +244,15 @@ func (r *RedisQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
 		logrus.Errorf(errorMsg)
-		return fmt.Errorf(errorMsg)
+		// 视频任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		return fmt.Errorf("未找到AI服务提供商: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用提供商的视频生成处理方法
 	if err := provider.ProcessVideoTask(ctx, payload.TaskID, payload.Input); err != nil {
 		logrus.Errorf("视频生成任务处理失败: %v", err)
-		return err
+		// 视频任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		return fmt.Errorf("视频生成任务处理失败: %v: %w", err, asynq.SkipRetry)
 	}
 
 	logrus.Infof("视频生成任务完成: %s", payload.TaskID)

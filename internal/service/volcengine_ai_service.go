@@ -72,9 +72,9 @@ func (s *VolcengineAIService) SubmitImageTask(ctx context.Context, request *Jime
 		"prompt":      request.Prompt,
 		"width":       request.Width,
 		"height":      request.Height,
-		"use_pre_llm": true, // 开启文本扩写
-		"use_sr":      true, // 开启AIGC超分
-		"return_url":  true, // 返回图片链接
+		"use_pre_llm": request.UsePreLLM, // 开启文本扩写
+		"use_sr":      request.UseSR,     // 开启AIGC超分
+		"return_url":  request.ReturnURL, // 返回图片链接
 	}
 
 	// 添加可选参数
@@ -88,6 +88,7 @@ func (s *VolcengineAIService) SubmitImageTask(ctx context.Context, request *Jime
 		taskParams["logo_info"] = request.LogoInfo
 	}
 
+	s.logger.Infof("提交任务参数: %v", taskParams)
 	// 调用CVSubmitTask提交任务
 	resp, status, err := s.visualClient.CVSubmitTask(taskParams)
 	if err != nil {
@@ -95,6 +96,7 @@ func (s *VolcengineAIService) SubmitImageTask(ctx context.Context, request *Jime
 		return "", fmt.Errorf("提交即梦AI任务失败: %v", err)
 	}
 
+	s.logger.Infof("提交任务响应: %v", resp)
 	s.logger.Infof("提交任务响应状态: %d", status)
 
 	// 解析响应获取task_id
