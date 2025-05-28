@@ -12,9 +12,6 @@ import (
 	"volcengine-go-server/internal/models"
 )
 
-// 用户repository的具体实现在mongodb.go中
-// 接口定义已移动到internal/models/interfaces.go
-
 // UserRepositoryImpl MongoDB用户repository实现
 type UserRepositoryImpl struct {
 	database *mongo.Database

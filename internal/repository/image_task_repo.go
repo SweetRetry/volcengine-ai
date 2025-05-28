@@ -12,9 +12,6 @@ import (
 	"volcengine-go-server/internal/models"
 )
 
-// 图像任务repository的具体实现在mongodb.go中
-// 接口定义已移动到internal/models/interfaces.go
-
 // ImageTaskRepositoryImpl MongoDB图像任务repository实现
 type ImageTaskRepositoryImpl struct {
 	database *mongo.Database

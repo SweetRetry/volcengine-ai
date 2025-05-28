@@ -42,8 +42,10 @@ func New() *Config {
 			URL: getEnv("REDIS_URL", "redis://localhost:6379"),
 		},
 		AI: AIConfig{
-			VolcengineAPIKey: getEnv("ARK_API_KEY", ""),
-			Timeout:          getEnv("AI_TIMEOUT", "30s"),
+			VolcengineAPIKey:    getEnv("ARK_API_KEY", ""),
+			VolcengineAccessKey: getEnv("VOLCENGINE_ACCESS_KEY", ""),
+			VolcengineSecretKey: getEnv("VOLCENGINE_SECRET_KEY", ""),
+			Timeout:             getEnv("AI_TIMEOUT", "30s"),
 		},
 	}
 }
