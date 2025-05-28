@@ -13,16 +13,16 @@ import (
 	"volcengine-go-server/internal/service"
 )
 
-// AI服务提供商接口
+// AIServiceProvider AI服务提供商接口
 type AIServiceProvider interface {
 	// 获取提供商名称
 	GetProviderName() string
 	// 处理图像生成任务
-	ProcessImageTask(ctx context.Context, taskID string, input map[string]interface{}) error
+	ProcessImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error
 	// 处理文本生成任务
-	ProcessTextTask(ctx context.Context, taskID string, input map[string]interface{}) error
+	ProcessTextTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error
 	// 处理视频生成任务
-	ProcessVideoTask(ctx context.Context, taskID string, input map[string]interface{}) error
+	ProcessVideoTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error
 }
 
 // 服务注册器
@@ -190,7 +190,7 @@ func (r *RedisQueue) handleTextGeneration(ctx context.Context, task *asynq.Task)
 	}
 
 	// 调用提供商的文本生成处理方法
-	if err := provider.ProcessTextTask(ctx, payload.TaskID, payload.Input); err != nil {
+	if err := provider.ProcessTextTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
 		logrus.Errorf("文本生成任务处理失败: %v", err)
 		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
 		return fmt.Errorf("文本生成任务处理失败: %v: %w", err, asynq.SkipRetry)
@@ -220,7 +220,7 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 	}
 
 	// 调用提供商的图像生成处理方法
-	if err := provider.ProcessImageTask(ctx, payload.TaskID, payload.Input); err != nil {
+	if err := provider.ProcessImageTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
 		logrus.Errorf("图像生成任务处理失败: %v", err)
 		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", err.Error())
 		// 返回SkipRetry错误，让asynq将任务标记为archived而不是processed
@@ -250,7 +250,7 @@ func (r *RedisQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task
 	}
 
 	// 调用提供商的视频生成处理方法
-	if err := provider.ProcessVideoTask(ctx, payload.TaskID, payload.Input); err != nil {
+	if err := provider.ProcessVideoTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
 		logrus.Errorf("视频生成任务处理失败: %v", err)
 		// 视频任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
 		return fmt.Errorf("视频生成任务处理失败: %v: %w", err, asynq.SkipRetry)
