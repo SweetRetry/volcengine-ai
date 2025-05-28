@@ -9,7 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 
-	"volcengine-go-server/internal/config"
+	"volcengine-go-server/config"
 	"volcengine-go-server/internal/service"
 )
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"volcengine-go-server/internal/config"
+	"volcengine-go-server/config"
 )
 
 // VolcengineAIProvider 火山引擎AI服务提供商适配器

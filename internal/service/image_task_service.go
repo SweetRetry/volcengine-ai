@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"volcengine-go-server/internal/config"
-	"volcengine-go-server/internal/database"
+	"volcengine-go-server/config"
+	"volcengine-go-server/internal/models"
+	"volcengine-go-server/internal/repository"
 )
 
 // ImageTaskService 专门处理图像生成任务的服务
 type ImageTaskService struct {
-	db database.Database
+	db repository.Database
 }
 
 // ImageTaskInput 图像生成任务的输入参数
@@ -32,16 +33,16 @@ type ImageTaskResult struct {
 	Created  time.Time `json:"created"`
 }
 
-func NewImageTaskService(db database.Database) *ImageTaskService {
+func NewImageTaskService(db repository.Database) *ImageTaskService {
 	return &ImageTaskService{
 		db: db,
 	}
 }
 
 // CreateImageTask 创建图像生成任务
-func (s *ImageTaskService) CreateImageTask(ctx context.Context, input *ImageTaskInput) (*database.ImageTask, error) {
+func (s *ImageTaskService) CreateImageTask(ctx context.Context, input *ImageTaskInput) (*models.ImageTask, error) {
 	// 创建图像任务记录
-	task := &database.ImageTask{
+	task := &models.ImageTask{
 		UserID: input.UserID,
 		Prompt: input.Prompt,
 		Model:  input.Model,

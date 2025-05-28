@@ -4,25 +4,26 @@ import (
 	"context"
 	"fmt"
 
-	"volcengine-go-server/internal/database"
+	"volcengine-go-server/internal/models"
+	"volcengine-go-server/internal/repository"
 )
 
 type UserService struct {
-	db database.Database
+	db repository.Database
 }
 
-func NewUserService(db database.Database) *UserService {
+func NewUserService(db repository.Database) *UserService {
 	return &UserService{db: db}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, email, name string) (*database.User, error) {
+func (s *UserService) CreateUser(ctx context.Context, email, name string) (*models.User, error) {
 	// 检查用户是否已存在
 	existingUser, err := s.db.GetUserByEmail(ctx, email)
 	if err == nil && existingUser != nil {
 		return nil, fmt.Errorf("用户已存在: %s", email)
 	}
 
-	user := &database.User{
+	user := &models.User{
 		Email: email,
 		Name:  name,
 	}
@@ -34,7 +35,7 @@ func (s *UserService) CreateUser(ctx context.Context, email, name string) (*data
 	return user, nil
 }
 
-func (s *UserService) GetUserByID(ctx context.Context, id string) (*database.User, error) {
+func (s *UserService) GetUserByID(ctx context.Context, id string) (*models.User, error) {
 	user, err := s.db.GetUserByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户失败: %w", err)
@@ -42,7 +43,7 @@ func (s *UserService) GetUserByID(ctx context.Context, id string) (*database.Use
 	return user, nil
 }
 
-func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*database.User, error) {
+func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	user, err := s.db.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("获取用户失败: %w", err)
@@ -50,7 +51,7 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*databa
 	return user, nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, user *database.User) error {
+func (s *UserService) UpdateUser(ctx context.Context, user *models.User) error {
 	if err := s.db.UpdateUser(ctx, user); err != nil {
 		return fmt.Errorf("更新用户失败: %w", err)
 	}

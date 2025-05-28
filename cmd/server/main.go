@@ -12,12 +12,12 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 
-	"volcengine-go-server/internal/config"
-	"volcengine-go-server/internal/database"
-	"volcengine-go-server/internal/handler"
-	"volcengine-go-server/internal/middleware"
+	"volcengine-go-server/api/handlers"
+	"volcengine-go-server/api/middleware"
+	"volcengine-go-server/api/routes"
+	"volcengine-go-server/config"
 	"volcengine-go-server/internal/queue"
-	"volcengine-go-server/internal/router"
+	"volcengine-go-server/internal/repository"
 	"volcengine-go-server/internal/service"
 )
 
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// 初始化MongoDB数据库
-	db, err := database.NewMongoDB(cfg.Database.MongoURL)
+	db, err := repository.NewMongoDB(cfg.Database.MongoURL)
 	if err != nil {
 		logrus.Fatal("连接MongoDB失败: ", err)
 	}
@@ -70,8 +70,8 @@ func main() {
 	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService, serviceRegistry)
 
 	// 初始化处理器
-	aiHandler := handler.NewAIHandler(imageTaskService, queueClient)
-	userHandler := handler.NewUserHandler(userService)
+	aiHandler := handlers.NewAIHandler(imageTaskService, queueClient)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// 设置Gin模式
 	if cfg.Environment == "production" {
@@ -88,7 +88,7 @@ func main() {
 	r.Use(middleware.RateLimiterMiddleware())
 
 	// 设置路由
-	router.SetupRoutes(r, aiHandler, userHandler)
+	routes.SetupRoutes(r, aiHandler, userHandler)
 
 	// 创建HTTP服务器
 	srv := &http.Server{

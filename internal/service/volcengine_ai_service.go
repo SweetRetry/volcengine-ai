@@ -10,7 +10,7 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 
-	"volcengine-go-server/internal/config"
+	"volcengine-go-server/config"
 )
 
 // VolcengineAIService 火山方舟AI服务
