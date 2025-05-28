@@ -62,3 +62,6 @@ build-errors.log
 debug
 debug.test
 __debug_bin 
+
+
+server
