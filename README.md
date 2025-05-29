@@ -82,7 +82,7 @@
 
 ### 队列系统
 - **Asynq** - 分布式任务队列
-- **Redis Streams** - 消息流处理
+- **Redis Backend** - 队列数据存储和持久化
 - **Worker Pool** - 并发任务处理
 
 ### 监控运维
