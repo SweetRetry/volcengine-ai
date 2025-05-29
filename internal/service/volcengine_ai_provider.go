@@ -38,7 +38,7 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 
 	// 根据模型选择不同的处理方法
 	switch model {
-	case config.VolcengineJimengModel:
+	case config.VolcengineJimengImageModel:
 		return v.processJimengImageTask(ctx, taskID, input)
 	case config.VolcengineImageModel: // doubao-seedream-3-0-t2i-250415
 		return v.processDoubaoImageTask(ctx, taskID, input)
@@ -62,8 +62,8 @@ func (v *VolcengineAIProvider) processJimengImageTask(ctx context.Context, taskI
 	// 构建即梦AI请求参数
 	request := &VolcJimentImageRequest{
 		Prompt:    taskInput.Prompt,
-		Width:     v.parseJimengSize(taskInput.Size, "width"),
-		Height:    v.parseJimengSize(taskInput.Size, "height"),
+		Width:     v.parseJimengImageSize(taskInput.Size, "width"),
+		Height:    v.parseJimengImageSize(taskInput.Size, "height"),
 		UsePreLLM: len(taskInput.Prompt) < 4, // prompt小于4才开启扩写
 		UseSr:     true,                      // 开启超分
 	}
@@ -155,11 +155,11 @@ func (v *VolcengineAIProvider) processDoubaoImageTask(ctx context.Context, taskI
 	return nil
 }
 
-// parseJimengSize 解析即梦AI的尺寸参数
+// parseJimengImageSize 解析即梦AI的尺寸参数
 // 根据官方建议：宽、高与512差距过大，则出图效果不佳、延迟过长概率显著增加
 // 超分前建议比例及对应宽高：
 // 1:1：512*512, 4:3：512*384, 3:4：384*512, 3:2：512*341, 2:3：341*512, 16:9：512*288, 9:16：288*512
-func (v *VolcengineAIProvider) parseJimengSize(size string, dimension string) string {
+func (v *VolcengineAIProvider) parseJimengImageSize(size string, dimension string) string {
 	switch size {
 	case "1:1", "1024x1024", "":
 		// 1:1 比例 - 512*512

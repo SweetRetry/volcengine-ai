@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -24,7 +23,7 @@ func ValidateRequest(c *gin.Context, req interface{}) []ValidationError {
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
 			for _, fieldError := range validationErrors {
 				errors = append(errors, ValidationError{
-					Field:   getJSONFieldName(fieldError),
+					Field:   fieldError.Field(),
 					Message: getValidationMessage(fieldError),
 					Value:   fieldError.Value(),
 				})
@@ -42,59 +41,29 @@ func ValidateRequest(c *gin.Context, req interface{}) []ValidationError {
 	return errors
 }
 
-// getJSONFieldName 获取JSON字段名
-func getJSONFieldName(fe validator.FieldError) string {
-	// 这里可以通过反射获取json标签，简化处理直接转换为小写
-	field := fe.Field()
-	switch field {
-	case "Email":
-		return "email"
-	case "Name":
-		return "name"
-	default:
-		return strings.ToLower(field)
-	}
-}
-
 // getValidationMessage 根据验证规则返回中文错误信息
 func getValidationMessage(fe validator.FieldError) string {
-	field := getJSONFieldName(fe)
+	field := fe.Field()
 
 	switch fe.Tag() {
 	case "required":
-		return fmt.Sprintf("%s 是必填字段", getFieldDisplayName(field))
+		return fmt.Sprintf("%s 是必填字段", field)
 	case "email":
-		return fmt.Sprintf("%s 格式不正确", getFieldDisplayName(field))
+		return fmt.Sprintf("%s 格式不正确", field)
 	case "min":
-		return fmt.Sprintf("%s 长度不能少于 %s 个字符", getFieldDisplayName(field), fe.Param())
+		return fmt.Sprintf("%s 长度不能少于 %s 个字符", field, fe.Param())
 	case "max":
-		return fmt.Sprintf("%s 长度不能超过 %s 个字符", getFieldDisplayName(field), fe.Param())
+		return fmt.Sprintf("%s 长度不能超过 %s 个字符", field, fe.Param())
 	case "len":
-		return fmt.Sprintf("%s 长度必须为 %s 个字符", getFieldDisplayName(field), fe.Param())
+		return fmt.Sprintf("%s 长度必须为 %s 个字符", field, fe.Param())
 	case "numeric":
-		return fmt.Sprintf("%s 必须是数字", getFieldDisplayName(field))
+		return fmt.Sprintf("%s 必须是数字", field)
 	case "alpha":
-		return fmt.Sprintf("%s 只能包含字母", getFieldDisplayName(field))
+		return fmt.Sprintf("%s 只能包含字母", field)
 	case "alphanum":
-		return fmt.Sprintf("%s 只能包含字母和数字", getFieldDisplayName(field))
+		return fmt.Sprintf("%s 只能包含字母和数字", field)
 	default:
-		return fmt.Sprintf("%s 验证失败", getFieldDisplayName(field))
-	}
-}
-
-// getFieldDisplayName 获取字段的中文显示名称
-func getFieldDisplayName(field string) string {
-	switch field {
-	case "email":
-		return "邮箱"
-	case "name":
-		return "姓名"
-	case "password":
-		return "密码"
-	case "phone":
-		return "手机号"
-	default:
-		return field
+		return fmt.Sprintf("%s 验证失败", field)
 	}
 }
 

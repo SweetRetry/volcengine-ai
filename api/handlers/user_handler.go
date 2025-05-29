@@ -17,13 +17,13 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 }
 
 type CreateUserRequest struct {
-	Email string `json:"email" binding:"required,email,max=100" validate:"email"`
-	Name  string `json:"name" binding:"required,min=2,max=50" validate:"required,min=2,max=50"`
+	Email string `json:"email" binding:"required,email,max=100"`
+	Name  string `json:"name" binding:"required,min=2,max=50"`
 }
 
 type UpdateUserRequest struct {
-	Email string `json:"email" binding:"omitempty,email,max=100" validate:"omitempty,email"`
-	Name  string `json:"name" binding:"omitempty,min=2,max=50" validate:"omitempty,min=2,max=50"`
+	Email string `json:"email" binding:"omitempty,email,max=100"`
+	Name  string `json:"name" binding:"omitempty,min=2,max=50"`
 }
 
 // 创建用户
