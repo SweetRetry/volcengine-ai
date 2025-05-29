@@ -4,12 +4,19 @@
 
 ## ✨ 核心特性
 
-### 🔥 火山方舟集成
-- **原生支持** 火山引擎豆包系列模型
-- **图像生成** 基于 `doubao-seedream-3.0-t2i` 模型
-- **文本生成** 支持 `doubao-pro-4k` 模型  
-- **视频生成** 集成 `doubao-video-pro` 模型
-- **高性能** 直接调用火山方舟API，无中间层损耗
+### 🔥 火山方舟多模型集成
+- **豆包图像生成** 基于 `doubao-seedream-3.0-t2i-250415` 模型，支持高质量图像生成
+- **即梦AI图像生成** 集成 `jimeng_high_aes_general_v21_L` 模型，专业级艺术创作
+- **智能模型路由** 根据不同模型自动选择最优处理策略
+- **多格式支持** 支持URL和Base64两种图片返回格式
+- **尺寸优化** 针对即梦AI官方建议的最佳尺寸配置进行优化
+
+### 🎯 即梦AI专业特性
+- **官方推荐尺寸** 支持1:1、4:3、3:4、3:2、2:3、16:9、9:16等最佳比例
+- **智能提示词扩写** 短提示词自动开启LLM扩写功能
+- **AIGC超分技术** 自动开启超分辨率增强
+- **双格式输出** 灵活支持图片URL和Base64数据返回
+- **防御性编程** 完善的错误处理和日志记录
 
 ### ⚡ Redis 异步队列系统
 - **高并发处理** 基于 [Asynq](https://github.com/hibiken/asynq) 的分布式任务队列
@@ -21,15 +28,15 @@
 ### 🏗️ 服务商注册者模式
 - **插件化架构** 支持多AI服务商动态注册
 - **统一接口** 标准化的AI服务提供商接口
+- **模型路由** 智能根据模型类型选择处理策略
 - **热插拔** 运行时动态添加/移除服务商
-- **负载均衡** 智能路由到最优服务商
 - **容错机制** 服务商故障自动切换
 
 ### 🔄 同步/异步双模式
-- **同步模式** 适用于实时交互场景
-- **异步模式** 适用于批量处理和长时间任务
-- **灵活切换** 根据业务需求自由选择处理模式
+- **异步任务** 适用于批量处理和长时间任务（推荐）
 - **状态追踪** 异步任务全生命周期状态管理
+- **分页查询** 支持用户任务列表分页查询
+- **任务管理** 支持任务删除和状态更新
 
 ## 🏛️ 系统架构
 
@@ -46,8 +53,8 @@
                     └─────────────┬─────────────┘
                                   │
                     ┌─────────────▼─────────────┐
-                    │   Service Registry       │
-                    │  (Provider Pattern)      │
+                    │   AI Task Factory        │
+                    │  (Model Router)          │
                     └─────────────┬─────────────┘
                                   │
         ┌─────────────────────────┼─────────────────────────┐
@@ -55,6 +62,8 @@
 ┌───────▼────────┐    ┌───────────▼──────────┐    ┌────────▼────────┐
 │ Volcengine AI  │    │    Redis Queue       │    │   MongoDB       │
 │   Provider     │    │   (Asynq Worker)     │    │   Database      │
+│ ├─豆包模型     │    │                      │    │                 │
+│ └─即梦AI       │    │                      │    │                 │
 └────────────────┘    └──────────────────────┘    └─────────────────┘
 ```
 
@@ -68,7 +77,8 @@
 
 ### AI服务集成
 - **火山方舟SDK** - 官方Go SDK
-- **多模型支持** - 图像、文本、视频生成
+- **火山引擎Visual SDK** - 即梦AI专用SDK
+- **多模型支持** - 豆包、即梦AI图像生成
 
 ### 队列系统
 - **Asynq** - 分布式任务队列
@@ -77,8 +87,8 @@
 
 ### 监控运维
 - **Logrus** - 结构化日志
-- **Prometheus** - 指标监控（规划中）
-- **Docker** - 容器化部署
+- **参数验证** - Gin binding + validator
+- **错误处理** - 统一错误响应机制
 
 ## 🚀 快速开始
 
@@ -87,6 +97,7 @@
 - MongoDB 4.4+
 - Redis 6.0+
 - 火山方舟API密钥 (ARK_API_KEY)
+- 火山引擎Access Key (可选，用于即梦AI)
 
 ### 安装部署
 
@@ -107,9 +118,11 @@ cp env.example .env
 # 编辑 .env 文件，配置以下关键参数：
 # PORT=8080
 # ENVIRONMENT=development
-# MONGO_URL=mongodb://localhost:27017/xxx
+# MONGO_URL=mongodb://localhost:27017/volcengine_db
 # REDIS_URL=redis://localhost:6379
 # ARK_API_KEY=your_ark_api_key_here
+# VOLCENGINE_ACCESS_KEY=your_access_key (可选)
+# VOLCENGINE_SECRET_KEY=your_secret_key (可选)
 # AI_TIMEOUT=30s
 ```
 
@@ -122,53 +135,105 @@ go run cmd/server/main.go
 go run cmd/worker/main.go
 ```
 
-### Docker 部署
-
-```bash
-# 构建镜像
-docker build -t volcengine-ai-server .
-
-# 使用 Docker Compose 启动完整环境
-docker-compose up -d
-```
-
 ## 📖 API 文档
 
 ### 图像生成
 
-#### 异步生成（推荐）
+#### 豆包模型图像生成
 ```bash
-# 创建图像生成任务
-curl -X POST http://localhost:8080/ai/image/task \
+curl -X POST http://localhost:8080/api/v1/ai/image/task \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "一只可爱的小猫咪在花园里玩耍",
     "user_id": "user123",
     "provider": "volcengine",
-    "model": "doubao-seedream-3.0-t2i",
+    "model": "doubao-seedream-3.0-t2i-250415",
     "size": "1024x1024"
   }'
-
-# 查询任务状态
-curl http://localhost:8080/ai/image/result/{task_id}
 ```
+
+#### 即梦AI图像生成
+```bash
+curl -X POST http://localhost:8080/api/v1/ai/image/task \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "过曝，强对比，夜晚，雪地里，巨大的黄色浴缸，小狗泡澡带墨镜",
+    "user_id": "user123",
+    "provider": "volcengine",
+    "model": "jimeng_high_aes_general_v21_L",
+    "size": "16:9"
+  }'
+```
+
+#### 查询任务状态
+```bash
+curl http://localhost:8080/api/v1/ai/image/result/{task_id}
+```
+
+### 支持的图像尺寸
+
+#### 豆包模型支持尺寸
+- `1024x1024` (1:1) - 默认
+- `864x1152` (3:4)
+- `1152x864` (4:3)
+- `1280x720` (16:9)
+- `720x1280` (9:16)
+- `832x1248` (2:3)
+- `1248x832` (3:2)
+- `1512x648` (21:9)
+
+#### 即梦AI推荐尺寸（官方优化）
+- `512x512` (1:1) - 最佳效果
+- `512x384` (4:3)
+- `384x512` (3:4)
+- `512x341` (3:2)
+- `341x512` (2:3)
+- `512x288` (16:9)
+- `288x512` (9:16)
 
 ### 任务管理
 
 ```bash
 # 获取用户任务列表
-curl "http://localhost:8080/ai/image/tasks?user_id=user123&limit=10"
+curl "http://localhost:8080/api/v1/ai/image/tasks?user_id=user123&limit=10&offset=0"
 
 # 删除任务
-curl -X DELETE http://localhost:8080/ai/image/task/{task_id}
+curl -X DELETE http://localhost:8080/api/v1/ai/image/task/{task_id}
+```
+
+### 用户管理
+
+```bash
+# 创建用户
+curl -X POST http://localhost:8080/api/v1/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "name": "张三"
+  }'
+
+# 获取用户信息
+curl http://localhost:8080/api/v1/users/{user_id}
 ```
 
 ## 🔧 配置说明
 
-### 服务商配置
+### 模型配置常量
+```go
+// 火山引擎豆包模型
+VolcengineImageModel = "doubao-seedream-3.0-t2i-250415"
+
+// 火山引擎即梦AI模型
+VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L"
+
+// 即梦AI推荐尺寸
+JimengImageSize1x1  = "512x512"  // 1:1 比例
+JimengImageSize16x9 = "512x288"  // 16:9 比例
+```
+
+### 服务商注册
 ```go
 // 注册火山引擎服务商
-arkAPIKey := os.Getenv("ARK_API_KEY")
 registry := queue.NewServiceRegistry()
 volcengineProvider := service.NewVolcengineAIProvider(
     volcengineService,
@@ -191,17 +256,13 @@ queue := queue.NewRedisQueue(
 go queue.StartWorker(ctx)
 ```
 
-### 数据库配置
-```go
-// MongoDB连接
-mongoURL := os.Getenv("MONGO_URL")
-db, err := database.NewMongoDB(mongoURL)
-if err != nil {
-    log.Fatal("数据库连接失败:", err)
-}
-```
-
 ## 📊 性能特性
+
+### 模型性能对比
+| 模型 | 生成时间 | 图像质量 | 适用场景 |
+|------|----------|----------|----------|
+| 豆包模型 | 3-5秒 | 高质量 | 通用图像生成 |
+| 即梦AI | 6-10秒 | 专业级 | 艺术创作、专业设计 |
 
 ### 并发处理能力
 - **队列并发度**: 10个worker（可配置）
@@ -212,11 +273,6 @@ if err != nil {
 - **水平扩展**: 支持多实例部署
 - **队列分片**: Redis集群支持
 - **数据库分片**: MongoDB分片集群
-
-### 可靠性保障
-- **任务重试**: 自动重试失败任务
-- **数据持久化**: MongoDB + Redis持久化
-- **服务降级**: 服务商故障自动切换
 
 ## 🔍 监控运维
 
@@ -229,15 +285,6 @@ if err != nil {
 ./scripts/clear_redis_queue.sh
 ```
 
-### 性能测试
-```bash
-# 全链路测试
-./scripts/test_volcengine_full.sh
-
-# 压力测试
-./scripts/load_test.sh
-```
-
 ### 日志查看
 ```bash
 # 实时日志
@@ -246,6 +293,23 @@ tail -f logs/app.log
 # 错误日志
 grep "ERROR" logs/app.log
 ```
+
+## 🆕 最新更新
+
+### v1.2.0 - 即梦AI集成与多模型支持
+- ✅ **即梦AI集成**: 完整支持即梦AI图像生成模型
+- ✅ **多模型路由**: 智能根据模型选择处理策略
+- ✅ **尺寸优化**: 基于官方建议的最佳尺寸配置
+- ✅ **双格式支持**: URL和Base64两种返回格式
+- ✅ **参数验证优化**: 简化验证逻辑，移除冗余标签
+- ✅ **常量重构**: 统一模型和尺寸常量管理
+
+### v1.1.0 - 架构重构与性能优化
+- ✅ **服务商模式**: 插件化AI服务提供商架构
+- ✅ **任务工厂**: 统一的AI任务创建和管理
+- ✅ **队列系统**: 基于Redis的异步任务处理
+- ✅ **数据库优化**: MongoDB索引和查询优化
+- ✅ **错误处理**: 统一的错误响应机制
 
 ## 🤝 贡献指南
 
@@ -271,6 +335,7 @@ grep "ERROR" logs/app.log
 ## 🙏 致谢
 
 - [火山方舟](https://www.volcengine.com/product/ark) - 提供强大的AI能力
+- [火山引擎即梦AI](https://www.volcengine.com/product/jimeng) - 专业级图像生成
 - [Asynq](https://github.com/hibiken/asynq) - 优秀的Go任务队列库
 - [Gin](https://github.com/gin-gonic/gin) - 高性能Web框架
 - [MongoDB](https://www.mongodb.com/) - 灵活的文档数据库
@@ -279,7 +344,7 @@ grep "ERROR" logs/app.log
 
 - 项目主页: [GitHub Repository](https://github.com/your-org/volcengine-go-server)
 - 问题反馈: [Issues](https://github.com/your-org/volcengine-go-server/issues)
-- 邮箱: your-email@example.com
+- 邮箱: zimin.zhang2000@gmail.com
 
 ---
 
