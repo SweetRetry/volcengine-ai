@@ -11,6 +11,8 @@ go.work
 # 编译输出
 volcengine-server
 volcengine-server_unix
+server
+worker
 
 # 测试覆盖率
 coverage.out
@@ -54,6 +56,7 @@ docker-compose.override.yml
 
 # Air热重载相关
 build-errors.log
+build-errors-worker.log
 .air/
 
 # 备份文件
@@ -63,6 +66,3 @@ build-errors.log
 debug
 debug.test
 __debug_bin 
-
-
-server

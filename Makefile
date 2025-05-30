@@ -53,6 +53,17 @@ run-worker:
 dev:
 	air
 
+# 开发模式运行Worker服务
+dev-worker:
+	air -c .air.worker.toml
+
+# 同时运行API服务器和Worker服务（开发模式）
+dev-all:
+	@echo "启动开发模式 - API服务器和Worker服务"
+	@echo "请在不同终端窗口中运行以下命令："
+	@echo "终端1: make dev"
+	@echo "终端2: make dev-worker"
+
 # 测试
 test:
 	$(GOTEST) -v ./...
@@ -160,7 +171,9 @@ help:
 	@echo "🚀 运行相关:"
 	@echo "  run                 - 运行API服务器"
 	@echo "  run-worker          - 运行任务处理中心"
-	@echo "  dev                 - 开发模式运行（热重载）"
+	@echo "  dev                 - 开发模式运行API服务器（热重载）"
+	@echo "  dev-worker          - 开发模式运行Worker服务（热重载）"
+	@echo "  dev-all             - 显示如何同时运行两个服务的开发模式"
 	@echo ""
 	@echo "🧪 测试相关:"
 	@echo "  test                - 运行测试"

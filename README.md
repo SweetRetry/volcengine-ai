@@ -171,6 +171,47 @@ make build-all
 make help
 ```
 
+### 开发模式（热重载）
+
+安装Air工具（如果尚未安装）：
+```bash
+go install github.com/cosmtrek/air@latest
+```
+
+启动开发模式：
+```bash
+# 开发模式运行API服务器（热重载）
+make dev
+
+# 开发模式运行Worker服务（热重载）
+make dev-worker
+
+# 查看如何同时运行两个服务
+make dev-all
+```
+
+在不同终端窗口中同时运行两个服务：
+```bash
+# 终端1 - API服务器
+make dev
+
+# 终端2 - Worker服务  
+make dev-worker
+```
+
+### 快速开发启动
+
+使用提供的开发启动脚本：
+```bash
+# 运行交互式开发启动脚本
+./scripts/dev-start.sh
+```
+
+该脚本会：
+- 自动检查并安装Air工具
+- 检查并创建.env配置文件
+- 提供交互式菜单选择启动模式
+
 ## 📖 API 文档
 
 ### 图像生成

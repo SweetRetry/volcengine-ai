@@ -4,11 +4,8 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./tmp/main"
-  # 默认构建API服务器，可以通过环境变量AIR_SERVICE切换
-  # AIR_SERVICE=server (默认) - 构建API服务器
-  # AIR_SERVICE=worker - 构建Worker服务
-  cmd = "go build -o ./tmp/main ./cmd/server"
+  bin = "./tmp/worker"
+  cmd = "go build -o ./tmp/worker ./cmd/worker"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules", ".git", ".vscode", "logs", "docs"]
   exclude_file = []
@@ -20,7 +17,7 @@ tmp_dir = "tmp"
   include_ext = ["go", "tpl", "tmpl", "html", "env"]
   include_file = []
   kill_delay = "2s"
-  log = "build-errors.log"
+  log = "build-errors-worker.log"
   poll = false
   poll_interval = 0
   rerun = false
