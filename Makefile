@@ -122,21 +122,43 @@ redis-queue-clear-force:
 	@echo "强制清理Redis队列数据（无需确认）..."
 	echo "y" | ./scripts/clear_redis_queue.sh
 
+# 测试日志功能
+test-logger:
+	$(GOBUILD) -o test_logger scripts/test_logger.go
+	./test_logger
+	rm -f test_logger
+
+# 清理日志文件
+clean-logs:
+	rm -rf logs/
+
+# 查看日志文件
+show-logs:
+	@echo "=== 日志文件列表 ==="
+	@ls -la logs/ 2>/dev/null || echo "logs目录不存在"
+	@echo ""
+	@echo "=== 最新日志内容 ==="
+	@tail -20 logs/app-$(shell date +%Y-%m-%d).log 2>/dev/null || echo "今日日志文件不存在"
+
 # 帮助信息
 help:
-	@echo "可用的命令:"
-	@echo "  install              - 安装Go依赖"
+	@echo "可用的make命令:"
 	@echo "  build               - 构建应用"
-	@echo "  build-linux         - 构建Linux版本"
 	@echo "  run                 - 运行应用"
-	@echo "  dev                 - 开发模式运行（使用Air热重载）"
+	@echo "  dev                 - 开发模式运行（热重载）"
 	@echo "  test                - 运行测试"
 	@echo "  test-coverage       - 运行测试并生成覆盖率报告"
+	@echo "  test-logger         - 测试日志功能"
 	@echo "  clean               - 清理构建文件"
+	@echo "  clean-logs          - 清理日志文件"
+	@echo "  show-logs           - 查看日志文件"
 	@echo "  fmt                 - 格式化代码"
 	@echo "  lint                - 代码检查"
 	@echo "  docker-build        - 构建Docker镜像"
 	@echo "  docker-run          - 运行Docker容器"
+	@echo "  docker-compose-up   - 启动Docker Compose"
+	@echo "  docker-compose-down - 停止Docker Compose"
+	@echo "  install             - 安装依赖"
 	@echo "  docs                - 生成API文档"
 	@echo "  tools               - 安装开发工具"
 	@echo "  redis-queue-status  - 查看Redis队列状态"

@@ -22,6 +22,7 @@ coverage.out
 
 # 日志文件
 *.log
+logs/
 
 # IDE
 .vscode/
