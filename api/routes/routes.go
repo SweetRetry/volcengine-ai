@@ -34,20 +34,18 @@ func SetupRoutes(
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
 
-		// AI服务 - 图像生成
+		// AI服务
 		ai := v1.Group("/ai")
 		{
-			// AI图像生成 - 异步任务
-			ai.POST("/image/task", aiHandler.CreateImageTask)              // 创建图像生成任务
-			ai.GET("/image/result/:task_id", aiHandler.GetImageTaskResult) // 查询任务结果
-			ai.GET("/image/tasks", aiHandler.GetUserImageTasks)            // 获取用户图像任务列表
-			ai.DELETE("/image/task/:task_id", aiHandler.DeleteImageTask)   // 删除图像任务
-
-			// AI文本生成 - 异步任务 (TODO: 待实现)
-			ai.POST("/text/task", aiHandler.CreateTextTask) // 创建文本生成任务
-
-			// AI视频生成 - 异步任务 (TODO: 待实现)
+			// AI任务创建 - 类型特定接口
+			ai.POST("/image/task", aiHandler.CreateImageTask) // 创建图像生成任务
+			ai.POST("/text/task", aiHandler.CreateTextTask)   // 创建文本生成任务 (TODO: 待实现)
 			ai.POST("/video/task", aiHandler.CreateVideoTask) // 创建视频生成任务
+
+			// 统一任务管理 - 通用接口
+			ai.GET("/task/result/:task_id", aiHandler.GetTaskResult) // 查询任务结果（通用）
+			ai.DELETE("/task/:task_id", aiHandler.DeleteTask)        // 删除任务（通用）
+			ai.GET("/tasks", aiHandler.GetUserTasks)                 // 获取用户任务列表（通用，支持类型过滤）
 		}
 	}
 

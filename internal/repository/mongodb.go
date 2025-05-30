@@ -106,3 +106,8 @@ func (m *MongoDB) CreateImageTaskIndexes(ctx context.Context) error {
 func (m *MongoDB) Close() error {
 	return m.client.Disconnect(context.Background())
 }
+
+// GetDatabase 获取底层的mongo.Database实例
+func (m *MongoDB) GetDatabase() *mongo.Database {
+	return m.database
+}

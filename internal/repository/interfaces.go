@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"volcengine-go-server/internal/models"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // UserRepository 用户数据访问接口
@@ -30,6 +32,8 @@ type ImageTaskRepository interface {
 type Database interface {
 	UserRepository
 	ImageTaskRepository
+	// 获取底层的mongo.Database实例
+	GetDatabase() *mongo.Database
 	// 关闭连接
 	Close() error
 }

@@ -8,6 +8,7 @@
 
 - **豆包图像生成** 基于 `doubao-seedream-3.0-t2i-250415` 模型，支持高质量图像生成
 - **即梦AI图像生成** 集成 `jimeng_high_aes_general_v21_L` 模型，专业级艺术创作
+- **即梦AI视频生成** 基于 `jimeng_vgfm_t2v_l20` 模型，支持文本到视频生成
 - **智能模型路由** 根据不同模型自动选择最优处理策略
 - **多格式支持** 支持URL和Base64两种图片返回格式
 - **尺寸优化** 针对即梦AI官方建议的最佳尺寸配置进行优化
@@ -18,6 +19,8 @@
 - **智能提示词扩写** 短提示词自动开启LLM扩写功能
 - **AIGC超分技术** 自动开启超分辨率增强
 - **双格式输出** 灵活支持图片URL和Base64数据返回
+- **视频生成能力** 支持多种视频尺寸比例，包括16:9、9:16、1:1等
+- **随机种子控制** 支持固定种子生成一致性内容
 - **防御性编程** 完善的错误处理和日志记录
 
 ### ⚡ Redis 异步队列系统
@@ -214,6 +217,13 @@ make dev-worker
 
 ## 📖 API 文档
 
+### ⚠️ 重要说明
+
+**model字段为必填参数**：从v1.6.0版本开始，所有任务创建接口都要求明确指定`model`字段，不再提供默认模型。这样设计的目的是：
+- 确保用户明确知道使用的是哪个AI模型
+- 避免因默认模型变更导致的意外结果
+- 提高API的明确性和可预测性
+
 ### 图像生成
 
 #### 豆包模型图像生成
@@ -247,7 +257,50 @@ curl -X POST http://localhost:8080/api/v1/ai/image/task \
 #### 查询任务状态
 
 ```bash
-curl http://localhost:8080/api/v1/ai/image/result/{task_id}
+curl http://localhost:8080/api/v1/ai/task/result/{task_id}
+```
+
+### 视频生成
+
+#### 即梦AI视频生成
+
+```bash
+curl -X POST http://localhost:8080/api/v1/ai/video/task \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，花朵盛开",
+    "user_id": "user123",
+    "provider": "volcengine",
+    "model": "jimeng_vgfm_t2v_l20",
+    "req_key": "jimeng_vgfm_t2v_l20",
+    "seed": -1,
+    "aspect_ratio": "16:9"
+  }'
+```
+
+#### 查询视频任务状态
+
+```bash
+curl http://localhost:8080/api/v1/ai/task/result/{task_id}
+```
+
+#### 支持的视频尺寸比例
+
+- `16:9`: 1280×720（默认）
+- `9:16`: 720×1280
+- `1:1`: 960×960
+- `4:3`: 960×720
+- `3:4`: 720×960
+- `21:9`: 1680×720
+
+#### 视频任务管理
+
+```bash
+# 获取用户视频任务列表
+curl "http://localhost:8080/api/v1/ai/video/tasks?user_id=user123&limit=10&offset=0"
+
+# 删除任务（统一接口，支持图像和视频任务）
+curl -X DELETE http://localhost:8080/api/v1/ai/task/{task_id}
 ```
 
 ### 支持的图像尺寸
@@ -276,11 +329,23 @@ curl http://localhost:8080/api/v1/ai/image/result/{task_id}
 ### 任务管理
 
 ```bash
-# 获取用户任务列表
-curl "http://localhost:8080/api/v1/ai/image/tasks?user_id=user123&limit=10&offset=0"
+# 获取用户所有任务列表（统一接口）
+curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&limit=10&offset=0"
 
-# 删除任务
-curl -X DELETE http://localhost:8080/api/v1/ai/image/task/{task_id}
+# 获取用户图像任务列表（通过类型过滤）
+curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=image&limit=10&offset=0"
+
+# 获取用户视频任务列表（通过类型过滤）
+curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=video&limit=10&offset=0"
+
+# 获取用户文本任务列表（通过类型过滤）
+curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=text&limit=10&offset=0"
+
+# 查询任务结果（统一接口，支持所有任务类型）
+curl http://localhost:8080/api/v1/ai/task/result/{task_id}
+
+# 删除任务（统一接口，支持所有任务类型）
+curl -X DELETE http://localhost:8080/api/v1/ai/task/{task_id}
 ```
 
 ### 用户管理
@@ -484,6 +549,32 @@ make redis-queue-clear-force
 
 ## 🆕 最新更新
 
+### v1.6.0 - 极简API设计
+
+- ✅ **移除兼容性接口**: 去掉所有类型特定的任务列表接口，采用最简洁的设计
+- ✅ **统一任务列表**: 只保留一个`GET /ai/tasks`接口，通过`type`参数过滤
+- ✅ **极简路由**: 总共只有6个API接口（3个创建 + 3个统一）
+- ✅ **线性扩展**: API数量随任务类型线性增长（N+3），而非传统的平方增长（N×4）
+- ✅ **客户端友好**: 统一的task_id可用于所有查询、删除操作，无需记住任务类型
+- ✅ **model字段必填**: 移除默认模型机制，要求用户明确指定AI模型，提高API明确性
+
+### v1.5.0 - 统一任务管理架构重构
+
+- ✅ **统一Task模型**: 合并ImageTask和VideoTask为统一的Task模型
+- ✅ **统一TaskService**: 一个服务处理所有类型的任务（图像、视频、文本）
+- ✅ **简化API设计**: 统一的任务查询和删除接口，无需区分任务类型
+- ✅ **优化数据库设计**: 单一tasks集合存储所有任务，减少复杂性
+- ✅ **扩展性增强**: 新增任务类型时只需线性增长API数量
+
+### v1.4.0 - 即梦AI视频生成功能
+
+- ✅ **视频生成支持**: 集成即梦AI文生视频模型 `jimeng_vgfm_t2v_l20`
+- ✅ **多尺寸比例**: 支持16:9、9:16、1:1、4:3、3:4、21:9等视频比例
+- ✅ **随机种子控制**: 支持固定种子生成一致性视频内容
+- ✅ **完整API**: 提供视频任务创建、查询、列表和删除功能
+- ✅ **队列处理**: 异步视频生成任务处理和状态管理
+- ✅ **文档完善**: 详细的视频生成API使用指南
+
 ### v1.3.0 - 智能日志管理系统
 
 - ✅ **日志管理系统**: 完整的日志轮转和清理功能
@@ -545,6 +636,8 @@ make redis-queue-clear-force
 ## 📚 相关文档
 
 - [日志系统说明](docs/日志系统说明.md) - 详细的日志管理系统使用指南
+- [即梦AI视频生成API](docs/即梦AI视频生成API.md) - 完整的视频生成API使用指南
+- [统一任务管理API设计](docs/统一任务管理API设计.md) - 新的统一API设计理念和实现
 
 ## 📞 联系我们
 

@@ -61,13 +61,13 @@ func main() {
 
 	// 初始化服务
 	volcengineAIService := service.NewVolcengineAIService(cfg.AI)
-	imageTaskService := service.NewImageTaskService(db)
+	taskService := service.NewTaskService(db.GetDatabase())
 
 	// 创建服务注册器
 	serviceRegistry := queue.NewServiceRegistry()
 
 	// 创建并注册火山引擎AI服务提供商
-	volcengineProvider := service.NewVolcengineAIProvider(volcengineAIService, imageTaskService)
+	volcengineProvider := service.NewVolcengineAIProvider(volcengineAIService, taskService)
 	serviceRegistry.RegisterProvider(volcengineProvider)
 
 	// 创建并注册OpenAI服务提供商（示例）
@@ -75,7 +75,7 @@ func main() {
 	// serviceRegistry.RegisterProvider(openaiProvider)
 
 	// 初始化队列（使用服务注册器）
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService, serviceRegistry)
+	queueClient := queue.NewRedisQueue(cfg.Redis.URL, taskService, serviceRegistry)
 
 	// 创建上下文用于优雅关闭
 	ctx, cancel := context.WithCancel(context.Background())

@@ -66,17 +66,17 @@ func main() {
 
 	// 初始化基础服务（API服务器只需要这些）
 	userService := service.NewUserService(db)
-	imageTaskService := service.NewImageTaskService(db)
+	taskService := service.NewTaskService(db.GetDatabase())
 
 	// 创建空的服务注册器（API服务器不需要注册任何提供商）
 	serviceRegistry := queue.NewServiceRegistry()
 	// 注意：API服务器不注册任何AI服务提供商，因为它不处理任务
 
 	// 初始化队列客户端（只用于发送任务到队列）
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL, imageTaskService, serviceRegistry)
+	queueClient := queue.NewRedisQueue(cfg.Redis.URL, taskService, serviceRegistry)
 
 	// 初始化处理器
-	aiHandler := handlers.NewAIHandler(imageTaskService, queueClient)
+	aiHandler := handlers.NewAIHandler(taskService, queueClient)
 	userHandler := handlers.NewUserHandler(userService)
 
 	// 设置Gin模式

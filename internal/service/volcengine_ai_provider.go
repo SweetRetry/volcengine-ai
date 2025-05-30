@@ -13,17 +13,17 @@ import (
 // VolcengineAIProvider 火山引擎AI服务提供商适配器
 type VolcengineAIProvider struct {
 	volcengineAIService *VolcengineAIService
-	imageTaskService    *ImageTaskService
+	taskService         *TaskService
 }
 
 // NewVolcengineAIProvider 创建火山引擎AI服务提供商
 func NewVolcengineAIProvider(
 	volcengineAIService *VolcengineAIService,
-	imageTaskService *ImageTaskService,
+	taskService *TaskService,
 ) *VolcengineAIProvider {
 	return &VolcengineAIProvider{
 		volcengineAIService: volcengineAIService,
-		imageTaskService:    imageTaskService,
+		taskService:         taskService,
 	}
 }
 
@@ -51,28 +51,34 @@ func (v *VolcengineAIProvider) ProcessImageTask(ctx context.Context, taskID stri
 
 // processJimengImageTask 处理即梦AI图像生成任务
 func (v *VolcengineAIProvider) processJimengImageTask(ctx context.Context, taskID string, input map[string]interface{}) error {
-	// 获取任务输入参数
-	taskInput, err := v.imageTaskService.GetImageTaskInput(ctx, taskID)
-	if err != nil {
+	// 从input参数中获取任务信息
+	prompt, ok := input["prompt"].(string)
+	if !ok {
+		err := fmt.Errorf("无效的prompt参数")
 		logrus.Errorf("获取任务输入失败: %v", err)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
+		v.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
+	}
+
+	size, _ := input["size"].(string)
+	if size == "" {
+		size = "1:1" // 默认尺寸
 	}
 
 	// 构建即梦AI请求参数
 	request := &VolcJimentImageRequest{
-		Prompt:    taskInput.Prompt,
-		Width:     v.parseJimengImageSize(taskInput.Size, "width"),
-		Height:    v.parseJimengImageSize(taskInput.Size, "height"),
-		UsePreLLM: len(taskInput.Prompt) < 4, // prompt小于4才开启扩写
-		UseSr:     true,                      // 开启超分
+		Prompt:    prompt,
+		Width:     v.parseJimengImageSize(size, "width"),
+		Height:    v.parseJimengImageSize(size, "height"),
+		UsePreLLM: len(prompt) < 4, // prompt小于4才开启扩写
+		UseSr:     true,            // 开启超分
 	}
 
 	// 调用即梦AI图像生成
 	result, err := v.volcengineAIService.GenerateImageByJimeng(ctx, request)
 	if err != nil {
 		logrus.Errorf("即梦AI图像生成失败: %v", err)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
+		v.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
 	}
 
@@ -91,12 +97,12 @@ func (v *VolcengineAIProvider) processJimengImageTask(ctx context.Context, taskI
 	default:
 		errorMsg := fmt.Sprintf("未知的图片格式: %s", result.Format)
 		logrus.Errorf(errorMsg)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", errorMsg)
+		v.taskService.UpdateTaskError(ctx, taskID, errorMsg)
 		return fmt.Errorf(errorMsg)
 	}
 
 	// 更新数据库中的任务状态
-	if err := v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "completed", imageURL, ""); err != nil {
+	if err := v.taskService.UpdateTaskResult(ctx, taskID, imageURL); err != nil {
 		logrus.Errorf("更新任务状态失败: %v", err)
 		return err
 	}
@@ -107,19 +113,25 @@ func (v *VolcengineAIProvider) processJimengImageTask(ctx context.Context, taskI
 
 // processDoubaoImageTask 处理豆包图像生成任务
 func (v *VolcengineAIProvider) processDoubaoImageTask(ctx context.Context, taskID string, input map[string]interface{}) error {
-	// 获取任务输入参数
-	taskInput, err := v.imageTaskService.GetImageTaskInput(ctx, taskID)
-	if err != nil {
+	// 从input参数中获取任务信息
+	prompt, ok := input["prompt"].(string)
+	if !ok {
+		err := fmt.Errorf("无效的prompt参数")
 		logrus.Errorf("获取任务输入失败: %v", err)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
+		v.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
+	}
+
+	size, _ := input["size"].(string)
+	if size == "" {
+		size = "1024x1024" // 默认尺寸
 	}
 
 	// 构建豆包图像生成请求参数
 	request := &VolcengineImageRequest{
-		Prompt: taskInput.Prompt,
+		Prompt: prompt,
 		Model:  config.VolcengineImageModel,
-		Size:   v.parseOptimalSizeString(taskInput.Size),
+		Size:   v.parseOptimalSizeString(size),
 		N:      1, // 生成1张图片
 	}
 
@@ -127,7 +139,7 @@ func (v *VolcengineAIProvider) processDoubaoImageTask(ctx context.Context, taskI
 	result, err := v.volcengineAIService.GenerateImage(ctx, request)
 	if err != nil {
 		logrus.Errorf("豆包图像生成失败: %v", err)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", err.Error())
+		v.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
 	}
 
@@ -137,7 +149,7 @@ func (v *VolcengineAIProvider) processDoubaoImageTask(ctx context.Context, taskI
 	if len(result.Data) == 0 {
 		errorMsg := "未生成任何图像"
 		logrus.Errorf("图像生成失败: %s", errorMsg)
-		v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "failed", "", errorMsg)
+		v.taskService.UpdateTaskError(ctx, taskID, errorMsg)
 		return fmt.Errorf(errorMsg)
 	}
 
@@ -146,7 +158,7 @@ func (v *VolcengineAIProvider) processDoubaoImageTask(ctx context.Context, taskI
 	logrus.Infof("豆包图像生成任务完成: %s, 图像URL: %s", taskID, imageURL)
 
 	// 更新数据库中的任务状态
-	if err := v.imageTaskService.UpdateImageTaskStatus(ctx, taskID, "completed", imageURL, ""); err != nil {
+	if err := v.taskService.UpdateTaskResult(ctx, taskID, imageURL); err != nil {
 		logrus.Errorf("更新任务状态失败: %v", err)
 		return err
 	}

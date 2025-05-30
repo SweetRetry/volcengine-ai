@@ -54,8 +54,8 @@ type RedisQueue struct {
 	server *asynq.Server
 	opt    asynq.RedisConnOpt
 	// 使用服务注册器替代具体的服务依赖
-	serviceRegistry  *ServiceRegistry
-	imageTaskService *service.ImageTaskService
+	serviceRegistry *ServiceRegistry
+	taskService     *service.TaskService
 }
 
 // 任务类型常量
@@ -77,7 +77,7 @@ type AITaskPayload struct {
 
 func NewRedisQueue(
 	redisURL string,
-	imageTaskService *service.ImageTaskService,
+	taskService *service.TaskService,
 	serviceRegistry *ServiceRegistry,
 ) *RedisQueue {
 	// 解析Redis URL
@@ -102,11 +102,11 @@ func NewRedisQueue(
 	})
 
 	return &RedisQueue{
-		client:           client,
-		server:           server,
-		opt:              opt,
-		serviceRegistry:  serviceRegistry,
-		imageTaskService: imageTaskService,
+		client:          client,
+		server:          server,
+		opt:             opt,
+		serviceRegistry: serviceRegistry,
+		taskService:     taskService,
 	}
 }
 
@@ -214,7 +214,7 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
 		logrus.Errorf(errorMsg)
-		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", errorMsg)
+		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		// 返回SkipRetry错误，让asynq将任务标记为archived而不是processed
 		return fmt.Errorf("未找到AI服务提供商: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
@@ -222,7 +222,7 @@ func (r *RedisQueue) handleImageGeneration(ctx context.Context, task *asynq.Task
 	// 调用提供商的图像生成处理方法
 	if err := provider.ProcessImageTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
 		logrus.Errorf("图像生成任务处理失败: %v", err)
-		r.imageTaskService.UpdateImageTaskStatus(ctx, payload.TaskID, "failed", "", err.Error())
+		r.taskService.UpdateTaskError(ctx, payload.TaskID, err.Error())
 		// 返回SkipRetry错误，让asynq将任务标记为archived而不是processed
 		return fmt.Errorf("图像生成任务处理失败: %v: %w", err, asynq.SkipRetry)
 	}
@@ -245,14 +245,14 @@ func (r *RedisQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI服务提供商: %s", payload.Provider)
 		logrus.Errorf(errorMsg)
-		// 视频任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		return fmt.Errorf("未找到AI服务提供商: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用提供商的视频生成处理方法
 	if err := provider.ProcessVideoTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
 		logrus.Errorf("视频生成任务处理失败: %v", err)
-		// 视频任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
+		r.taskService.UpdateTaskError(ctx, payload.TaskID, err.Error())
 		return fmt.Errorf("视频生成任务处理失败: %v: %w", err, asynq.SkipRetry)
 	}
 

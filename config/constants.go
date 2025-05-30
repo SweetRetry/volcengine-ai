@@ -9,6 +9,7 @@ const (
 
 	// 火山引擎即梦AI模型
 	VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L"
+	VolcengineJimengVideoModel = "jimeng_vgfm_t2v_l20" // 即梦AI文生视频模型
 
 	// OpenAI模型
 	OpenAIImageModel = "dall-e-3"
@@ -39,6 +40,22 @@ const (
 	JimengImageSize2x3  = "341x512" // 2:3 比例
 	JimengImageSize16x9 = "512x288" // 16:9 比例
 	JimengImageSize9x16 = "288x512" // 9:16 比例
+)
+
+// 即梦AI视频尺寸比例常量
+const (
+	VideoAspectRatio16x9    = "16:9" // 1280×720 (默认)
+	VideoAspectRatio9x16    = "9:16" // 720×1280
+	VideoAspectRatio1x1     = "1:1"  // 960×960
+	VideoAspectRatio4x3     = "4:3"  // 960×720
+	VideoAspectRatio3x4     = "3:4"  // 720×960
+	VideoAspectRatio21x9    = "21:9" // 1680×720
+	DefaultVideoAspectRatio = VideoAspectRatio16x9
+)
+
+// 视频生成默认参数
+const (
+	DefaultVideoSeed = -1 // 随机种子，-1表示随机生成
 )
 
 // 分页常量
