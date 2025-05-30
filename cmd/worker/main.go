@@ -11,7 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"volcengine-go-server/config"
-	"volcengine-go-server/internal/queue"
+	"volcengine-go-server/internal/core"
+	"volcengine-go-server/internal/provider"
 	"volcengine-go-server/internal/repository"
 	"volcengine-go-server/internal/service"
 	"volcengine-go-server/pkg/logger"
@@ -59,23 +60,28 @@ func main() {
 	}
 	defer db.Close()
 
-	// 初始化服务
-	volcengineAIService := service.NewVolcengineAIService(cfg.AI)
-	taskService := service.NewTaskService(db.GetDatabase())
+	// 初始化服务层
+	taskService := service.NewTaskService(db)
+	volcengineService := service.NewVolcengineService(cfg.AI, taskService)
+
+	// 创建OpenAI服务（示例，如果需要的话）
+	// openaiService := service.NewOpenAIService("your-openai-api-key", taskService)
 
 	// 创建服务注册器
-	serviceRegistry := queue.NewServiceRegistry()
+	serviceRegistry := core.NewServiceRegistry()
 
-	// 创建并注册火山引擎AI服务提供商
-	volcengineProvider := service.NewVolcengineAIProvider(volcengineAIService, taskService)
-	serviceRegistry.RegisterProvider(volcengineProvider)
+	// 创建并注册火山引擎任务分发器
+	volcengineProvider := provider.NewVolcengineProvider(volcengineService, taskService)
+	serviceRegistry.RegisterDispatcher(volcengineProvider)
 
-	// 创建并注册OpenAI服务提供商（示例）
-	// openaiProvider := service.NewOpenAIProvider(cfg.OpenAI.APIKey)
-	// serviceRegistry.RegisterProvider(openaiProvider)
+	// 创建并注册OpenAI任务分发器（示例）
+	// openaiProvider := provider.NewOpenAIProvider(openaiService, taskService)
+	// serviceRegistry.RegisterDispatcher(openaiProvider)
+
+	logrus.Infof("已注册AI服务分发器: %v", getRegisteredProviders(serviceRegistry))
 
 	// 初始化队列（使用服务注册器）
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL, taskService, serviceRegistry)
+	queueClient := core.NewTaskQueue(cfg.Redis.URL, taskService, serviceRegistry)
 
 	// 创建上下文用于优雅关闭
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,4 +113,14 @@ func main() {
 	}
 
 	logrus.Info("任务处理中心已退出")
+}
+
+// getRegisteredProviders 获取已注册的服务提供商列表
+func getRegisteredProviders(registry *core.ServiceRegistry) []string {
+	dispatchers := registry.GetAllDispatchers()
+	providers := make([]string, 0, len(dispatchers))
+	for name := range dispatchers {
+		providers = append(providers, name)
+	}
+	return providers
 }

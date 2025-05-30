@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	"volcengine-go-server/internal/models"
-
 	"go.mongodb.org/mongo-driver/mongo"
+
+	"volcengine-go-server/internal/models"
 )
 
 // UserRepository 用户数据访问接口
@@ -18,20 +18,24 @@ type UserRepository interface {
 	CreateUserIndexes(ctx context.Context) error
 }
 
-// ImageTaskRepository 图像任务数据访问接口
-type ImageTaskRepository interface {
-	CreateImageTask(ctx context.Context, task *models.ImageTask) error
-	GetImageTaskByID(ctx context.Context, id string) (*models.ImageTask, error)
-	GetImageTasksByUserID(ctx context.Context, userID string, limit, offset int) ([]*models.ImageTask, error)
-	UpdateImageTaskStatus(ctx context.Context, id, status, imageURL, errorMsg string) error
-	DeleteImageTask(ctx context.Context, id string) error
-	CreateImageTaskIndexes(ctx context.Context) error
+// TaskRepository 任务数据访问接口
+type TaskRepository interface {
+	CreateTask(ctx context.Context, task *models.Task) error
+	GetTaskByID(ctx context.Context, id string) (*models.Task, error)
+	GetTasksByUserID(ctx context.Context, userID string, taskType string, limit, offset int) ([]*models.Task, error)
+	UpdateTaskStatus(ctx context.Context, id, status string) error
+	UpdateTaskResult(ctx context.Context, taskID string, task *models.Task, resultURL string) error
+	UpdateTaskError(ctx context.Context, id, errorMsg string) error
+	DeleteTask(ctx context.Context, id string) error
+	CreateTaskIndexes(ctx context.Context) error
 }
 
-// Database 数据库接口 - 组合所有repository接口
+// Database 数据库接口 - 提供Repository实例的工厂
 type Database interface {
-	UserRepository
-	ImageTaskRepository
+	// 获取Repository实例
+	UserRepository() UserRepository
+	TaskRepository() TaskRepository
+
 	// 获取底层的mongo.Database实例
 	GetDatabase() *mongo.Database
 	// 关闭连接

@@ -1,35 +1,42 @@
 # 🚀 Volcengine AI Server
 
-基于火山方舟的企业级AI服务平台，采用现代化微服务架构，支持多AI服务商、异步任务处理和高并发场景。
+基于火山方舟的企业级AI服务平台，采用现代化分层架构设计，支持多AI服务商、异步任务处理和高并发场景。
 
 ## ✨ 核心特性
 
+### 🏗️ 现代化分层架构
+
+- **Core层** - 核心基础设施，包含任务队列系统和AI任务分发器接口
+- **Provider层** - 任务分发层，根据模型参数智能路由到具体Service
+- **Service层** - 业务实现层，包含真实的AI API调用逻辑
+- **Repository层** - 数据访问层，统一的数据库操作接口
+- **职责分离** - 每层职责明确，易于维护和扩展
+
 ### 🔥 火山方舟多模型集成
 
-- **豆包图像生成** 基于 `doubao-seedream-3.0-t2i-250415` 模型，支持高质量图像生成
+- **豆包图像生成** 基于 `doubao-seedream-3-0-t2i-250415` 模型，支持高质量图像生成
 - **即梦AI图像生成** 集成 `jimeng_high_aes_general_v21_L` 模型，专业级艺术创作
 - **即梦AI视频生成** 基于 `jimeng_vgfm_t2v_l20` 模型，支持文本到视频生成
-- **智能模型路由** 根据不同模型自动选择最优处理策略
+- **智能模型路由** Provider层根据不同模型自动选择最优处理策略
 - **多格式支持** 支持URL和Base64两种图片返回格式
 - **尺寸优化** 针对即梦AI官方建议的最佳尺寸配置进行优化
 
-### 🎯 即梦AI专业特性
+### ⚡ 核心基础设施 (Core)
 
-- **官方推荐尺寸** 支持1:1、4:3、3:4、3:2、2:3、16:9、9:16等最佳比例
-- **智能提示词扩写** 短提示词自动开启LLM扩写功能
-- **AIGC超分技术** 自动开启超分辨率增强
-- **双格式输出** 灵活支持图片URL和Base64数据返回
-- **视频生成能力** 支持多种视频尺寸比例，包括16:9、9:16、1:1等
-- **随机种子控制** 支持固定种子生成一致性内容
-- **防御性编程** 完善的错误处理和日志记录
-
-### ⚡ Redis 异步队列系统
-
-- **高并发处理** 基于 [Asynq](https://github.com/hibiken/asynq) 的分布式任务队列
+- **任务队列系统** 基于 [Asynq](https://github.com/hibiken/asynq) 的分布式任务队列
+- **AI任务分发器** 统一的任务分发接口，支持插件化扩展
+- **服务注册器** 动态注册和管理AI服务提供商
 - **优先级队列** 支持 critical、default、low 三级优先级
 - **任务重试** 自动重试机制，确保任务可靠执行
 - **实时监控** 队列状态实时监控和管理
-- **水平扩展** 支持多worker节点分布式处理
+
+### 🎯 Provider-Service 分层模式
+
+- **Provider层职责** - 任务分发和路由，根据模型参数决定调用哪个Service方法
+- **Service层职责** - 具体的AI API调用和业务逻辑实现
+- **接口解耦** - Provider只依赖Service接口，完全解耦
+- **热插拔** - 运行时动态添加/移除服务商
+- **容错机制** - 服务商故障自动切换
 
 ### 📝 智能日志管理系统
 
@@ -38,22 +45,15 @@
 - **智能清理机制** 自动清理过期日志文件，可配置保留天数（默认7天）
 - **结构化日志** 采用JSON格式，包含时间戳、级别、消息和结构化字段
 - **灵活配置** 支持通过环境变量配置日志级别和保留策略
-- **手动管理** 支持强制轮转和清理操作，便于运维管理
 
-### 🏗️ 服务商注册者模式
+### 🔄 统一任务管理
 
-- **插件化架构** 支持多AI服务商动态注册
-- **统一接口** 标准化的AI服务提供商接口
-- **模型路由** 智能根据模型类型选择处理策略
-- **热插拔** 运行时动态添加/移除服务商
-- **容错机制** 服务商故障自动切换
-
-### 🔄 同步/异步双模式
-
-- **异步任务** 适用于批量处理和长时间任务（推荐）
+- **统一Task模型** 一个模型处理所有类型任务（图像、视频、文本）
+- **统一TaskService** 一个服务处理所有任务操作
+- **极简API设计** 总共只有6个API接口（3个创建 + 3个统一）
+- **线性扩展** API数量随任务类型线性增长（N+3），而非传统的平方增长（N×4）
 - **状态追踪** 异步任务全生命周期状态管理
 - **分页查询** 支持用户任务列表分页查询
-- **任务管理** 支持任务删除和状态更新
 
 ## 🏛️ 系统架构
 
@@ -70,19 +70,54 @@
                     └─────────────┬─────────────┘
                                   │
                     ┌─────────────▼─────────────┐
-                    │   AI Task Factory        │
-                    │  (Model Router)          │
+                    │     AI Handler           │
+                    │   (Unified Router)       │
                     └─────────────┬─────────────┘
                                   │
         ┌─────────────────────────┼─────────────────────────┐
         │                         │                         │
 ┌───────▼────────┐    ┌───────────▼──────────┐    ┌────────▼────────┐
-│ Volcengine AI  │    │    Redis Queue       │    │   MongoDB       │
-│   Provider     │    │   (Asynq Worker)     │    │   Database      │
-│ ├─豆包模型     │    │                      │    │                 │
-│ └─即梦AI       │    │                      │    │                 │
+│ Core Layer     │    │   Provider Layer     │    │  Service Layer  │
+│ ├─TaskQueue    │    │ ├─VolcengineProvider │    │ ├─VolcengineService│
+│ ├─Dispatcher   │    │ └─OpenAIProvider     │    │ └─OpenAIService  │
+│ └─Registry     │    │                      │    │                 │
 └────────────────┘    └──────────────────────┘    └─────────────────┘
+        │                         │                         │
+        └─────────────────────────┼─────────────────────────┘
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        │                         │                         │
+┌───────▼────────┐              ┌─▼─────────────────┐    ┌────────▼────────┐
+│    Redis       │              │     MongoDB       │    │   Repository    │
+│   (Queue)      │              │   (Database)      │    │     Layer       │
+└────────────────┘              └───────────────────┘    └─────────────────┘
 ```
+
+### 架构层次说明
+
+#### Core Layer (核心基础设施层)
+
+- **TaskQueue** - 任务队列系统，处理异步任务调度
+- **AITaskDispatcher** - AI任务分发器接口定义
+- **ServiceRegistry** - 服务注册器，管理Provider实例
+
+#### Provider Layer (任务分发层)
+
+- **VolcengineProvider** - 火山引擎任务分发器
+- **OpenAIProvider** - OpenAI任务分发器
+- **职责** - 根据模型参数决定调用哪个Service方法
+
+#### Service Layer (业务实现层)
+
+- **VolcengineService** - 火山引擎API具体实现
+- **OpenAIService** - OpenAI API具体实现
+- **TaskService** - 统一任务管理服务
+- **职责** - 真实的AI API调用和业务逻辑
+
+#### Repository Layer (数据访问层)
+
+- **MongoDB** - 任务数据持久化
+- **统一接口** - 标准化数据访问操作
 
 ## 🛠️ 技术栈
 
@@ -99,7 +134,7 @@
 - **火山引擎Visual SDK** - 即梦AI专用SDK
 - **多模型支持** - 豆包、即梦AI图像生成
 
-### 队列系统
+### 核心基础设施
 
 - **Asynq** - 分布式任务队列
 - **Redis Backend** - 队列数据存储和持久化
@@ -177,11 +212,13 @@ make help
 ### 开发模式（热重载）
 
 安装Air工具（如果尚未安装）：
+
 ```bash
 go install github.com/cosmtrek/air@latest
 ```
 
 启动开发模式：
+
 ```bash
 # 开发模式运行API服务器（热重载）
 make dev
@@ -194,6 +231,7 @@ make dev-all
 ```
 
 在不同终端窗口中同时运行两个服务：
+
 ```bash
 # 终端1 - API服务器
 make dev
@@ -205,12 +243,14 @@ make dev-worker
 ### 快速开发启动
 
 使用提供的开发启动脚本：
+
 ```bash
 # 运行交互式开发启动脚本
 ./scripts/dev-start.sh
 ```
 
 该脚本会：
+
 - 自动检查并安装Air工具
 - 检查并创建.env配置文件
 - 提供交互式菜单选择启动模式
@@ -219,14 +259,118 @@ make dev-worker
 
 ### ⚠️ 重要说明
 
-**model字段为必填参数**：从v1.6.0版本开始，所有任务创建接口都要求明确指定`model`字段，不再提供默认模型。这样设计的目的是：
-- 确保用户明确知道使用的是哪个AI模型
-- 避免因默认模型变更导致的意外结果
+**model和provider字段为必填参数**：所有任务创建接口都要求明确指定`model`和`provider`字段，不再提供默认值。这样设计的目的是：
+- 确保用户明确知道使用的是哪个AI模型和服务提供商
+- 避免因默认值变更导致的意外结果
 - 提高API的明确性和可预测性
+- 简化代码逻辑，减少配置复杂度
 
-### 图像生成
+### 🎯 统一API设计
 
-#### 豆包模型图像生成
+本系统采用统一的API设计模式，所有AI任务都遵循相同的请求结构和响应格式：
+
+#### 任务创建接口
+
+```bash
+# 图像生成任务
+POST /api/v1/ai/image/task
+
+# 视频生成任务  
+POST /api/v1/ai/video/task
+
+# 文本生成任务
+POST /api/v1/ai/text/task
+```
+
+#### 统一请求结构
+
+```json
+{
+  "prompt": "任务描述文本",
+  "user_id": "用户ID",
+  "provider": "服务提供商名称",
+  "model": "具体模型名称",
+  
+  // 可选参数（根据任务类型）
+  "size": "图像尺寸",
+  "aspect_ratio": "视频比例", 
+  "max_tokens": 1000,
+  "temperature": 0.7,
+  "seed": -1
+}
+```
+
+#### 统一响应结构
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "任务ID",
+    "status": "pending",
+    "provider": "服务提供商",
+    "model": "模型名称"
+  },
+  "message": "任务创建成功"
+}
+```
+
+### 🔄 统一任务管理
+
+```bash
+# 查询任务结果（支持所有任务类型）
+GET /api/v1/ai/task/result/{task_id}
+
+# 删除任务（支持所有任务类型）
+DELETE /api/v1/ai/task/{task_id}
+
+# 获取用户任务列表（支持类型过滤）
+GET /api/v1/ai/tasks?user_id={user_id}&type={type}&limit={limit}&offset={offset}
+```
+
+#### 任务查询响应
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "任务ID",
+    "type": "image|video|text",
+    "status": "pending|processing|completed|failed",
+    "created": "创建时间",
+    "updated": "更新时间",
+    
+    // 结果字段（任务完成时）
+    "image_url": "图像URL",
+    "video_url": "视频URL", 
+    "text_result": "文本结果"
+  },
+  "message": "任务完成"
+}
+```
+
+### 📋 支持的模型和参数
+
+#### 火山引擎模型
+
+| 模型类型 | 模型名称 | 支持参数 |
+|---------|---------|---------|
+| 豆包图像 | `doubao-seedream-3-0-t2i-250415` | size: 1024x1024, 864x1152, 1152x864, 1280x720, 720x1280, 832x1248, 1248x832, 1512x648 |
+| 即梦AI图像 | `jimeng_high_aes_general_v21_L` | size: 512x512, 512x384, 384x512, 512x341, 341x512, 512x288, 288x512 |
+| 即梦AI视频 | `jimeng_vgfm_t2v_l20` | aspect_ratio: 16:9, 9:16, 1:1, 4:3, 3:4, 21:9; seed: 随机种子 |
+| 豆包文本 | `doubao-pro-4k` | max_tokens: 最大令牌数; temperature: 温度参数 |
+
+#### OpenAI模型（示例扩展）
+
+| 模型类型 | 模型名称 | 支持参数 |
+|---------|---------|---------|
+| DALL-E图像 | `dall-e-3` | size: 1024x1024, 1024x1792, 1792x1024 |
+| GPT文本 | `gpt-4` | max_tokens, temperature |
+| Sora视频 | `sora` | aspect_ratio: 16:9, 9:16, 1:1 |
+
+### 💡 使用示例
+
+#### 创建图像生成任务
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/ai/image/task \
@@ -235,261 +379,133 @@ curl -X POST http://localhost:8080/api/v1/ai/image/task \
     "prompt": "一只可爱的小猫咪在花园里玩耍",
     "user_id": "user123",
     "provider": "volcengine",
-    "model": "doubao-seedream-3.0-t2i-250415",
+    "model": "doubao-seedream-3-0-t2i-250415",
     "size": "1024x1024"
-  }'
-```
-
-#### 即梦AI图像生成
-
-```bash
-curl -X POST http://localhost:8080/api/v1/ai/image/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "过曝，强对比，夜晚，雪地里，巨大的黄色浴缸，小狗泡澡带墨镜",
-    "user_id": "user123",
-    "provider": "volcengine",
-    "model": "jimeng_high_aes_general_v21_L",
-    "size": "16:9"
   }'
 ```
 
 #### 查询任务状态
 
 ```bash
-curl http://localhost:8080/api/v1/ai/task/result/{task_id}
+curl http://localhost:8080/api/v1/ai/task/result/task_id_here
 ```
 
-### 视频生成
-
-#### 即梦AI视频生成
+#### 获取用户任务列表
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/ai/video/task \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "一只可爱的小猫在花园里玩耍，阳光明媚，花朵盛开",
-    "user_id": "user123",
-    "provider": "volcengine",
-    "model": "jimeng_vgfm_t2v_l20",
-    "req_key": "jimeng_vgfm_t2v_l20",
-    "seed": -1,
-    "aspect_ratio": "16:9"
-  }'
-```
-
-#### 查询视频任务状态
-
-```bash
-curl http://localhost:8080/api/v1/ai/task/result/{task_id}
-```
-
-#### 支持的视频尺寸比例
-
-- `16:9`: 1280×720（默认）
-- `9:16`: 720×1280
-- `1:1`: 960×960
-- `4:3`: 960×720
-- `3:4`: 720×960
-- `21:9`: 1680×720
-
-#### 视频任务管理
-
-```bash
-# 获取用户视频任务列表
-curl "http://localhost:8080/api/v1/ai/video/tasks?user_id=user123&limit=10&offset=0"
-
-# 删除任务（统一接口，支持图像和视频任务）
-curl -X DELETE http://localhost:8080/api/v1/ai/task/{task_id}
-```
-
-### 支持的图像尺寸
-
-#### 豆包模型支持尺寸
-
-- `1024x1024` (1:1) - 默认
-- `864x1152` (3:4)
-- `1152x864` (4:3)
-- `1280x720` (16:9)
-- `720x1280` (9:16)
-- `832x1248` (2:3)
-- `1248x832` (3:2)
-- `1512x648` (21:9)
-
-#### 即梦AI推荐尺寸（官方优化）
-
-- `512x512` (1:1) - 最佳效果
-- `512x384` (4:3)
-- `384x512` (3:4)
-- `512x341` (3:2)
-- `341x512` (2:3)
-- `512x288` (16:9)
-- `288x512` (9:16)
-
-### 任务管理
-
-```bash
-# 获取用户所有任务列表（统一接口）
+# 获取所有任务
 curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&limit=10&offset=0"
 
-# 获取用户图像任务列表（通过类型过滤）
+# 只获取图像任务
 curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=image&limit=10&offset=0"
-
-# 获取用户视频任务列表（通过类型过滤）
-curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=video&limit=10&offset=0"
-
-# 获取用户文本任务列表（通过类型过滤）
-curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=text&limit=10&offset=0"
-
-# 查询任务结果（统一接口，支持所有任务类型）
-curl http://localhost:8080/api/v1/ai/task/result/{task_id}
-
-# 删除任务（统一接口，支持所有任务类型）
-curl -X DELETE http://localhost:8080/api/v1/ai/task/{task_id}
 ```
 
-### 用户管理
+### 🔧 API设计优势
 
-```bash
-# 创建用户
-curl -X POST http://localhost:8080/api/v1/users \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "name": "张三"
-  }'
+- **统一接口** - 所有任务类型使用相同的API模式
+- **线性扩展** - 新增任务类型只需添加一个创建接口
+- **类型无关** - 查询、删除、列表接口与任务类型无关
+- **参数明确** - 必填的model和provider字段确保调用明确性
+- **易于集成** - 客户端只需记住统一的调用模式
 
-# 获取用户信息
-curl http://localhost:8080/api/v1/users/{user_id}
-```
+## 🏗️ 架构设计理念
 
-## 📝 日志系统
+### Provider-Service 分层模式
 
-### 日志文件结构
+```go
+// Provider层 - 任务分发
+type VolcengineProvider struct {
+    volcengineService *service.VolcengineService
+    taskService       *service.TaskService
+}
 
-```
-logs/
-├── app-2024-01-15.log    # 今天的日志
-├── app-2024-01-14.log    # 昨天的日志
-├── app-2024-01-13.log    # 前天的日志
-└── ...                   # 更早的日志（根据保留策略）
-```
-
-### 日志格式
-
-采用JSON格式，包含以下字段：
-
-```json
-{
-  "time": "2024-01-15 10:30:45",
-  "level": "info",
-  "msg": "用户登录",
-  "user_id": "12345",
-  "ip": "192.168.1.1"
+func (p *VolcengineProvider) DispatchImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
+    switch model {
+    case "jimeng_high_aes_general_v21_L":
+        return p.volcengineService.GenerateImageByJimeng(ctx, taskID, input)
+    case "doubao-seedream-3-0-t2i-250415":
+        return p.volcengineService.GenerateImageByDoubao(ctx, taskID, input)
+    default:
+        return fmt.Errorf("不支持的模型: %s", model)
+    }
 }
 ```
 
-### 日志级别
+```go
+// Service层 - 具体实现
+type VolcengineService struct {
+    config      *config.AIConfig
+    taskService *TaskService
+}
 
-- `debug`: 调试信息
-- `info`: 一般信息
-- `warn`: 警告信息
-- `error`: 错误信息
+func (s *VolcengineService) GenerateImageByJimeng(ctx context.Context, taskID string, input map[string]interface{}) error {
+    // 具体的即梦AI API调用逻辑
+    // ...
+}
 
-### 日志管理命令
-
-```bash
-# 查看今天的日志
-make show-logs
-
-# 查看实时日志
-tail -f logs/app-$(date +%Y-%m-%d).log
-
-# 搜索错误日志
-grep "ERROR" logs/app-*.log
-
-# 清理所有日志文件
-make clean-logs
-
-# 查看日志文件大小
-du -h logs/
+func (s *VolcengineService) GenerateImageByDoubao(ctx context.Context, taskID string, input map[string]interface{}) error {
+    // 具体的豆包API调用逻辑
+    // ...
+}
 ```
 
-### 自动化功能
-
-- **自动轮转**: 每天午夜自动创建新的日志文件
-- **自动清理**: 自动删除超过保留期限的日志文件（默认7天）
-- **双输出**: 同时输出到控制台和文件，便于开发和生产环境使用
-
-## 🔧 配置说明
-
-### 模型配置常量
+### 核心基础设施
 
 ```go
-// 火山引擎豆包模型
-VolcengineImageModel = "doubao-seedream-3.0-t2i-250415"
+// Core层 - 任务队列系统
+type TaskQueue struct {
+    client          *asynq.Client
+    server          *asynq.Server
+    serviceRegistry *ServiceRegistry
+    taskService     *service.TaskService
+}
 
-// 火山引擎即梦AI模型
-VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L"
+// Core层 - 服务注册器
+type ServiceRegistry struct {
+    dispatchers map[string]AITaskDispatcher
+}
 
-// 即梦AI推荐尺寸
-JimengImageSize1x1  = "512x512"  // 1:1 比例
-JimengImageSize16x9 = "512x288"  // 16:9 比例
+func (sr *ServiceRegistry) RegisterDispatcher(dispatcher AITaskDispatcher) {
+    sr.dispatchers[dispatcher.GetProviderName()] = dispatcher
+}
 ```
 
-### 服务商注册
+### 扩展新服务商
+
+添加新的AI服务商只需要：
+
+1. **实现Service层**
 
 ```go
-// 注册火山引擎服务商
-registry := queue.NewServiceRegistry()
-volcengineProvider := service.NewVolcengineAIProvider(
-    volcengineService,
-    imageTaskService,
-)
-registry.RegisterProvider(volcengineProvider)
+type NewAIService struct {
+    apiKey      string
+    taskService *TaskService
+}
+
+func (s *NewAIService) GenerateImage(ctx context.Context, taskID string, input map[string]interface{}) error {
+    // 新服务商的API调用逻辑
+}
 ```
 
-### 队列配置
+2. **实现Provider层**
 
 ```go
-// Redis队列配置
-redisURL := os.Getenv("REDIS_URL")
-queue := queue.NewRedisQueue(
-    redisURL,
-    imageTaskService,
-    serviceRegistry,
-)
+type NewAIProvider struct {
+    newAIService *NewAIService
+    taskService  *TaskService
+}
 
-// 启动工作器
-go queue.StartWorker(ctx)
+func (p *NewAIProvider) DispatchImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
+    return p.newAIService.GenerateImage(ctx, taskID, input)
+}
 ```
 
-### 日志系统配置
+3. **注册到系统**
 
 ```go
-// 日志管理器配置
-logManager := logger.NewLogManager()
-logManager.SetKeepDays(7)                    // 保留7天
-logManager.SetRotateInterval(24 * time.Hour) // 24小时轮转一次
-logManager.SetCleanInterval(24 * time.Hour)  // 24小时清理一次
-
-// 启动日志管理器
-ctx := context.Background()
-go logManager.Start(ctx)
-
-// 手动操作
-logManager.ForceRotate() // 强制轮转
-logManager.ForceClean()  // 强制清理
-```
-
-### 环境变量配置
-
-```bash
-# 日志级别 (debug, info, warn, error)
-LOG_LEVEL=info
-
-# 日志保留天数
-LOG_KEEP_DAYS=7
+newAIService := service.NewNewAIService(apiKey, taskService)
+newAIProvider := provider.NewNewAIProvider(newAIService, taskService)
+serviceRegistry.RegisterDispatcher(newAIProvider)
 ```
 
 ## 📊 性能特性
@@ -549,57 +565,31 @@ make redis-queue-clear-force
 
 ## 🆕 最新更新
 
+### v2.0.0 - 现代化分层架构重构
+
+- ✅ **Core基础设施层** - 将任务队列系统移至core目录，作为核心基础设施
+- ✅ **Provider-Service分层** - 完全分离任务分发和具体实现职责
+- ✅ **接口驱动设计** - 基于AITaskDispatcher接口的插件化架构
+- ✅ **目录结构优化** - 更清晰的分层目录结构，职责明确
+- ✅ **TaskQueue重命名** - 从RedisQueue重命名为TaskQueue，更通用的命名
+- ✅ **架构文档完善** - 详细的架构设计理念和扩展指南
+
 ### v1.6.0 - 极简API设计
 
-- ✅ **移除兼容性接口**: 去掉所有类型特定的任务列表接口，采用最简洁的设计
-- ✅ **统一任务列表**: 只保留一个`GET /ai/tasks`接口，通过`type`参数过滤
-- ✅ **极简路由**: 总共只有6个API接口（3个创建 + 3个统一）
-- ✅ **线性扩展**: API数量随任务类型线性增长（N+3），而非传统的平方增长（N×4）
-- ✅ **客户端友好**: 统一的task_id可用于所有查询、删除操作，无需记住任务类型
-- ✅ **model字段必填**: 移除默认模型机制，要求用户明确指定AI模型，提高API明确性
+- ✅ **移除兼容性接口** - 去掉所有类型特定的任务列表接口，采用最简洁的设计
+- ✅ **统一任务列表** - 只保留一个`GET /ai/tasks`接口，通过`type`参数过滤
+- ✅ **极简路由** - 总共只有6个API接口（3个创建 + 3个统一）
+- ✅ **线性扩展** - API数量随任务类型线性增长（N+3），而非传统的平方增长（N×4）
+- ✅ **model字段必填** - 移除默认模型机制，要求用户明确指定AI模型
+- ✅ **provider字段必填** - 移除默认提供商机制，要求用户明确指定AI服务提供商
 
 ### v1.5.0 - 统一任务管理架构重构
 
-- ✅ **统一Task模型**: 合并ImageTask和VideoTask为统一的Task模型
-- ✅ **统一TaskService**: 一个服务处理所有类型的任务（图像、视频、文本）
-- ✅ **简化API设计**: 统一的任务查询和删除接口，无需区分任务类型
-- ✅ **优化数据库设计**: 单一tasks集合存储所有任务，减少复杂性
-- ✅ **扩展性增强**: 新增任务类型时只需线性增长API数量
-
-### v1.4.0 - 即梦AI视频生成功能
-
-- ✅ **视频生成支持**: 集成即梦AI文生视频模型 `jimeng_vgfm_t2v_l20`
-- ✅ **多尺寸比例**: 支持16:9、9:16、1:1、4:3、3:4、21:9等视频比例
-- ✅ **随机种子控制**: 支持固定种子生成一致性视频内容
-- ✅ **完整API**: 提供视频任务创建、查询、列表和删除功能
-- ✅ **队列处理**: 异步视频生成任务处理和状态管理
-- ✅ **文档完善**: 详细的视频生成API使用指南
-
-### v1.3.0 - 智能日志管理系统
-
-- ✅ **日志管理系统**: 完整的日志轮转和清理功能
-- ✅ **双输出模式**: 同时输出到控制台和文件
-- ✅ **自动轮转**: 按日期自动创建新日志文件
-- ✅ **智能清理**: 自动清理过期日志，可配置保留天数
-- ✅ **Makefile优化**: 新增构建和运行任务处理中心的命令
-- ✅ **运维工具**: 增强日志查看和管理命令
-
-### v1.2.0 - 即梦AI集成与多模型支持
-
-- ✅ **即梦AI集成**: 完整支持即梦AI图像生成模型
-- ✅ **多模型路由**: 智能根据模型选择处理策略
-- ✅ **尺寸优化**: 基于官方建议的最佳尺寸配置
-- ✅ **双格式支持**: URL和Base64两种返回格式
-- ✅ **参数验证优化**: 简化验证逻辑，移除冗余标签
-- ✅ **常量重构**: 统一模型和尺寸常量管理
-
-### v1.1.0 - 架构重构与性能优化
-
-- ✅ **服务商模式**: 插件化AI服务提供商架构
-- ✅ **任务工厂**: 统一的AI任务创建和管理
-- ✅ **队列系统**: 基于Redis的异步任务处理
-- ✅ **数据库优化**: MongoDB索引和查询优化
-- ✅ **错误处理**: 统一的错误响应机制
+- ✅ **统一Task模型** - 合并ImageTask和VideoTask为统一的Task模型
+- ✅ **统一TaskService** - 一个服务处理所有类型的任务（图像、视频、文本）
+- ✅ **简化API设计** - 统一的任务查询和删除接口，无需区分任务类型
+- ✅ **优化数据库设计** - 单一tasks集合存储所有任务，减少复杂性
+- ✅ **扩展性增强** - 新增任务类型时只需线性增长API数量
 
 ## 🤝 贡献指南
 
@@ -632,12 +622,6 @@ make redis-queue-clear-force
 - [MongoDB](https://www.mongodb.com/) - 灵活的文档数据库
 
 ⭐ 如果这个项目对你有帮助，请给我们一个星标！
-
-## 📚 相关文档
-
-- [日志系统说明](docs/日志系统说明.md) - 详细的日志管理系统使用指南
-- [即梦AI视频生成API](docs/即梦AI视频生成API.md) - 完整的视频生成API使用指南
-- [统一任务管理API设计](docs/统一任务管理API设计.md) - 新的统一API设计理念和实现
 
 ## 📞 联系我们
 

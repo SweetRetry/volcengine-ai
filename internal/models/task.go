@@ -4,6 +4,28 @@ import (
 	"time"
 )
 
+// TaskInput 统一任务输入
+type TaskInput struct {
+	Prompt   string `json:"prompt" binding:"required"`
+	UserID   string `json:"user_id" binding:"required"`
+	Type     string `json:"type" binding:"required"` // image, video, text
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
+
+	// 图像生成特有字段
+	Size string `json:"size,omitempty"`
+	N    int    `json:"n,omitempty"`
+
+	// 视频生成特有字段
+	ReqKey      string `json:"req_key,omitempty"`
+	Seed        int64  `json:"seed,omitempty"`
+	AspectRatio string `json:"aspect_ratio,omitempty"`
+
+	// 文本生成特有字段
+	MaxTokens   int     `json:"max_tokens,omitempty"`
+	Temperature float64 `json:"temperature,omitempty"`
+}
+
 // Task 统一任务数据模型
 type Task struct {
 	ID       string    `json:"id" bson:"_id,omitempty"`

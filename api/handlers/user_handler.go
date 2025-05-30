@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"volcengine-go-server/internal/models"
 	"volcengine-go-server/internal/service"
 )
 
@@ -36,7 +37,23 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userService.CreateUser(c.Request.Context(), req.Email, req.Name)
+	// 检查用户是否已存在
+	existingUser, err := h.userService.GetUserByEmail(c.Request.Context(), req.Email)
+	if err == nil && existingUser != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "创建用户失败",
+			"message": "用户已存在: " + req.Email,
+		})
+		return
+	}
+
+	// 创建用户对象
+	user := &models.User{
+		Email: req.Email,
+		Name:  req.Name,
+	}
+
+	err = h.userService.CreateUser(c.Request.Context(), user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "创建用户失败",

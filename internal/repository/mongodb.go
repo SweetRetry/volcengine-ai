@@ -5,18 +5,16 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"volcengine-go-server/internal/models"
 )
 
-// MongoDB 数据库连接管理器，组合各个repository
+// MongoDB 数据库连接管理器，提供Repository实例
 type MongoDB struct {
 	client   *mongo.Client
 	database *mongo.Database
 
-	// 组合各个repository
-	userRepo      UserRepository
-	imageTaskRepo ImageTaskRepository
+	// Repository实例
+	userRepo UserRepository
+	taskRepo TaskRepository
 }
 
 func NewMongoDB(uri string) (Database, error) {
@@ -34,72 +32,32 @@ func NewMongoDB(uri string) (Database, error) {
 
 	// 创建各个repository实例
 	userRepo := NewUserRepository(database)
-	imageTaskRepo := NewImageTaskRepository(database)
+	taskRepo := NewTaskRepository(database)
 
 	// 创建索引
 	if err := userRepo.CreateUserIndexes(context.Background()); err != nil {
 		return nil, err
 	}
-	if err := imageTaskRepo.CreateImageTaskIndexes(context.Background()); err != nil {
+	if err := taskRepo.CreateTaskIndexes(context.Background()); err != nil {
 		return nil, err
 	}
 
 	return &MongoDB{
-		client:        client,
-		database:      database,
-		userRepo:      userRepo,
-		imageTaskRepo: imageTaskRepo,
+		client:   client,
+		database: database,
+		userRepo: userRepo,
+		taskRepo: taskRepo,
 	}, nil
 }
 
-// 实现Database接口 - 用户相关方法
-func (m *MongoDB) CreateUser(ctx context.Context, user *models.User) error {
-	return m.userRepo.CreateUser(ctx, user)
+// UserRepository 返回用户Repository实例
+func (m *MongoDB) UserRepository() UserRepository {
+	return m.userRepo
 }
 
-func (m *MongoDB) GetUserByID(ctx context.Context, id string) (*models.User, error) {
-	return m.userRepo.GetUserByID(ctx, id)
-}
-
-func (m *MongoDB) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	return m.userRepo.GetUserByEmail(ctx, email)
-}
-
-func (m *MongoDB) UpdateUser(ctx context.Context, user *models.User) error {
-	return m.userRepo.UpdateUser(ctx, user)
-}
-
-func (m *MongoDB) DeleteUser(ctx context.Context, id string) error {
-	return m.userRepo.DeleteUser(ctx, id)
-}
-
-func (m *MongoDB) CreateUserIndexes(ctx context.Context) error {
-	return m.userRepo.CreateUserIndexes(ctx)
-}
-
-// 实现Database接口 - 图像任务相关方法
-func (m *MongoDB) CreateImageTask(ctx context.Context, task *models.ImageTask) error {
-	return m.imageTaskRepo.CreateImageTask(ctx, task)
-}
-
-func (m *MongoDB) GetImageTaskByID(ctx context.Context, id string) (*models.ImageTask, error) {
-	return m.imageTaskRepo.GetImageTaskByID(ctx, id)
-}
-
-func (m *MongoDB) GetImageTasksByUserID(ctx context.Context, userID string, limit, offset int) ([]*models.ImageTask, error) {
-	return m.imageTaskRepo.GetImageTasksByUserID(ctx, userID, limit, offset)
-}
-
-func (m *MongoDB) UpdateImageTaskStatus(ctx context.Context, id, status, imageURL, errorMsg string) error {
-	return m.imageTaskRepo.UpdateImageTaskStatus(ctx, id, status, imageURL, errorMsg)
-}
-
-func (m *MongoDB) DeleteImageTask(ctx context.Context, id string) error {
-	return m.imageTaskRepo.DeleteImageTask(ctx, id)
-}
-
-func (m *MongoDB) CreateImageTaskIndexes(ctx context.Context) error {
-	return m.imageTaskRepo.CreateImageTaskIndexes(ctx)
+// TaskRepository 返回任务Repository实例
+func (m *MongoDB) TaskRepository() TaskRepository {
+	return m.taskRepo
 }
 
 // Close 关闭数据库连接

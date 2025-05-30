@@ -16,7 +16,7 @@ import (
 	"volcengine-go-server/api/middleware"
 	"volcengine-go-server/api/routes"
 	"volcengine-go-server/config"
-	"volcengine-go-server/internal/queue"
+	"volcengine-go-server/internal/core"
 	"volcengine-go-server/internal/repository"
 	"volcengine-go-server/internal/service"
 	"volcengine-go-server/pkg/logger"
@@ -66,14 +66,14 @@ func main() {
 
 	// 初始化基础服务（API服务器只需要这些）
 	userService := service.NewUserService(db)
-	taskService := service.NewTaskService(db.GetDatabase())
+	taskService := service.NewTaskService(db)
 
 	// 创建空的服务注册器（API服务器不需要注册任何提供商）
-	serviceRegistry := queue.NewServiceRegistry()
+	serviceRegistry := core.NewServiceRegistry()
 	// 注意：API服务器不注册任何AI服务提供商，因为它不处理任务
 
 	// 初始化队列客户端（只用于发送任务到队列）
-	queueClient := queue.NewRedisQueue(cfg.Redis.URL, taskService, serviceRegistry)
+	queueClient := core.NewTaskQueue(cfg.Redis.URL, taskService, serviceRegistry)
 
 	// 初始化处理器
 	aiHandler := handlers.NewAIHandler(taskService, queueClient)
