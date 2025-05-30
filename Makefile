@@ -105,9 +105,30 @@ lint:
 docker-build:
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
+# 构建API服务器镜像
+docker-build-server:
+	docker build --target server -t $(DOCKER_IMAGE)-server:$(DOCKER_TAG) .
+
+# 构建Worker服务镜像
+docker-build-worker:
+	docker build --target worker -t $(DOCKER_IMAGE)-worker:$(DOCKER_TAG) .
+
+# 构建所有Docker镜像
+docker-build-all:
+	docker build --target server -t $(DOCKER_IMAGE)-server:$(DOCKER_TAG) .
+	docker build --target worker -t $(DOCKER_IMAGE)-worker:$(DOCKER_TAG) .
+
 # 运行Docker容器
 docker-run:
 	docker run -p 8080:8080 --env-file .env $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+# 运行API服务器容器
+docker-run-server:
+	docker run -p 8080:8080 --env-file .env $(DOCKER_IMAGE)-server:$(DOCKER_TAG)
+
+# 运行Worker服务容器（不暴露端口）
+docker-run-worker:
+	docker run --env-file .env $(DOCKER_IMAGE)-worker:$(DOCKER_TAG)
 
 # Docker compose启动
 docker-compose-up:
@@ -192,7 +213,12 @@ help:
 	@echo ""
 	@echo "🐳 Docker相关:"
 	@echo "  docker-build        - 构建Docker镜像"
+	@echo "  docker-build-server - 构建API服务器镜像"
+	@echo "  docker-build-worker - 构建Worker服务镜像"
+	@echo "  docker-build-all    - 构建所有Docker镜像"
 	@echo "  docker-run          - 运行Docker容器"
+	@echo "  docker-run-server   - 运行API服务器容器"
+	@echo "  docker-run-worker   - 运行Worker服务容器"
 	@echo "  docker-compose-up   - 启动Docker Compose"
 	@echo "  docker-compose-down - 停止Docker Compose"
 	@echo ""

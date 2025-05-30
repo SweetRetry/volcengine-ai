@@ -15,14 +15,19 @@ services:
       - MONGO_URL=mongodb://mongodb:27017/volcengine_db
       - REDIS_URL=redis://redis:6379
       - ARK_API_KEY=${ARK_API_KEY}
+      - VOLCENGINE_ACCESS_KEY=${VOLCENGINE_ACCESS_KEY}
+      - VOLCENGINE_SECRET_KEY=${VOLCENGINE_SECRET_KEY}
       - AI_TIMEOUT=30s
       - LOG_LEVEL=info
+      - LOG_KEEP_DAYS=7
     depends_on:
       - mongodb
       - redis
     restart: unless-stopped
     networks:
       - volcengine-network
+    volumes:
+      - ./logs:/app/logs  # 挂载日志目录
 
   # ⚡ 队列工作器
   queue-worker:
@@ -35,8 +40,11 @@ services:
       - MONGO_URL=mongodb://mongodb:27017/volcengine_db
       - REDIS_URL=redis://redis:6379
       - ARK_API_KEY=${ARK_API_KEY}
+      - VOLCENGINE_ACCESS_KEY=${VOLCENGINE_ACCESS_KEY}
+      - VOLCENGINE_SECRET_KEY=${VOLCENGINE_SECRET_KEY}
       - AI_TIMEOUT=30s
       - LOG_LEVEL=info
+      - LOG_KEEP_DAYS=7
       - QUEUE_CONCURRENCY=10
     depends_on:
       - mongodb
@@ -44,6 +52,8 @@ services:
     restart: unless-stopped
     networks:
       - volcengine-network
+    volumes:
+      - ./logs:/app/logs  # 挂载日志目录
     deploy:
       replicas: 2  # 运行2个工作器实例
 

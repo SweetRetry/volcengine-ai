@@ -76,6 +76,12 @@ RUN mkdir -p logs && chown -R appuser:appgroup /app
 # 切换到非root用户
 USER appuser
 
+# Worker服务不需要暴露端口，它通过Redis队列处理任务
+
+# 健康检查 - 检查进程是否运行
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD pgrep -f worker || exit 1
+
 # 启动命令
 CMD ["./worker"]
 

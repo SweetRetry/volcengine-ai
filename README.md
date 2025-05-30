@@ -553,3 +553,45 @@ make redis-queue-clear-force
 - 邮箱: <zimin.zhang2000@gmail.com>
 
 ---
+
+## 🐳 Docker 部署
+
+### 单独构建和运行
+
+```bash
+# 构建API服务器镜像
+make docker-build-server
+
+# 构建Worker服务镜像
+make docker-build-worker
+
+# 构建所有镜像
+make docker-build-all
+
+# 运行API服务器容器（暴露8080端口）
+make docker-run-server
+
+# 运行Worker服务容器（不暴露端口，后台任务处理）
+make docker-run-worker
+```
+
+### 使用Docker Compose
+
+```bash
+# 启动完整服务栈（推荐）
+make docker-compose-up
+
+# 停止所有服务
+make docker-compose-down
+
+# 启动包含监控服务的完整栈
+docker-compose --profile monitoring up -d
+```
+
+### 服务架构说明
+
+- **API服务器**: 暴露8080端口，提供HTTP API服务
+- **Worker服务**: 不暴露端口，通过Redis队列处理后台任务
+- **MongoDB**: 数据持久化存储
+- **Redis**: 缓存和任务队列
+- **监控服务**: 可选的Prometheus + Grafana监控栈
