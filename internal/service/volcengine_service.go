@@ -283,24 +283,24 @@ func (s *VolcengineService) GenerateVideoByJimeng(ctx context.Context, taskID st
 	}
 
 	// 提交视频生成任务
-	taskID, err := s.submitJimengVideoTask(ctx, request)
+	externalTaskID, err := s.submitJimengVideoTask(ctx, request)
 	if err != nil {
 		s.logger.Errorf("提交即梦AI视频任务失败: %v", err)
 		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
 	}
 
-	s.logger.Infof("即梦AI视频任务已提交，外部任务ID: %s", taskID)
+	s.logger.Infof("即梦AI视频任务已提交，外部任务ID: %s", externalTaskID)
 
 	// 轮询任务结果
-	result, err := s.pollJimengVideoResult(ctx, taskID)
+	result, err := s.pollJimengVideoResult(ctx, externalTaskID)
 	if err != nil {
 		s.logger.Errorf("轮询即梦AI视频任务结果失败: %v", err)
 		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
 		return err
 	}
 
-	s.logger.Infof("即梦AI视频生成成功: %s, 视频URL: %s", taskID, result.VideoURL)
+	s.logger.Infof("即梦AI视频生成成功: %s, 视频URL: %s", externalTaskID, result.VideoURL)
 
 	// 更新数据库中的任务状态
 	if err := s.taskService.UpdateTaskResult(ctx, taskID, result.VideoURL); err != nil {
@@ -606,21 +606,21 @@ func (s *VolcengineService) submitJimengVideoTask(ctx context.Context, request *
 
 	// 记录详细的API调用信息
 	s.logger.WithFields(logrus.Fields{
-		"api_endpoint": "CVSubmitTask",
+		"api_endpoint": "cvSync2AsyncSubmitTask",
 		"req_key":      taskParams["req_key"],
 		"prompt":       taskParams["prompt"],
 		"aspect_ratio": taskParams["aspect_ratio"],
 		"seed":         taskParams["seed"],
 	}).Info("即梦AI视频API调用开始")
 
-	// 调用CVSubmitTask提交任务
+	// 调用cvSync2AsyncSubmitTask提交任务
 	startTime := time.Now()
-	resp, status, err := s.visualClient.CVSubmitTask(taskParams)
+	resp, status, err := s.visualClient.CVSync2AsyncSubmitTask(taskParams)
 	duration := time.Since(startTime)
 
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
-			"api_endpoint": "CVSubmitTask",
+			"api_endpoint": "cvSync2AsyncSubmitTask",
 			"duration_ms":  duration.Milliseconds(),
 			"status_code":  status,
 			"error":        err.Error(),
@@ -630,20 +630,32 @@ func (s *VolcengineService) submitJimengVideoTask(ctx context.Context, request *
 
 	// 记录成功的API调用
 	s.logger.WithFields(logrus.Fields{
-		"api_endpoint": "CVSubmitTask",
+		"api_endpoint": "cvSync2AsyncSubmitTask",
 		"duration_ms":  duration.Milliseconds(),
 		"status_code":  status,
 		"response":     resp,
 	}).Info("即梦AI视频API调用成功")
 
-	// 直接从响应中获取taskId
-	taskID, ok := resp["task_id"].(string)
-	if !ok {
-		return "", fmt.Errorf("响应中未找到有效的task_id")
+	// 检查响应是否包含task_id（异步任务）
+	if taskID, ok := resp["task_id"].(string); ok && taskID != "" {
+		s.logger.Infof("即梦AI视频任务提交成功，获得task_id: %s", taskID)
+		return taskID, nil
 	}
 
-	s.logger.Infof("即梦AI视频任务提交成功，获得task_id: %s", taskID)
-	return taskID, nil
+	// 如果没有task_id，检查是否有其他标识符
+	if data, exists := resp["data"]; exists {
+		if dataMap, ok := data.(map[string]interface{}); ok {
+			// 检查是否有task_id在data中
+			if taskID, exists := dataMap["task_id"]; exists {
+				if taskIDStr, ok := taskID.(string); ok && taskIDStr != "" {
+					s.logger.Infof("即梦AI视频任务提交成功，从data中获得task_id: %s", taskIDStr)
+					return taskIDStr, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("响应中未找到有效的task_id")
 }
 
 // pollJimengVideoResult 轮询即梦AI视频生成结果
