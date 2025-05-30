@@ -89,6 +89,13 @@ func main() {
 
 	// 注册中间件
 	r.Use(middleware.Logger())
+
+	// 根据环境变量决定是否启用详细日志
+	if os.Getenv("ENABLE_DETAILED_LOGGING") == "true" {
+		logrus.Info("启用详细HTTP请求日志记录")
+		r.Use(middleware.DetailedLogger())
+	}
+
 	r.Use(middleware.OptionsHandler())
 	r.Use(middleware.Recovery())
 	r.Use(middleware.RateLimiterMiddleware())
