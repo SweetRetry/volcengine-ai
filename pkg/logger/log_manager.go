@@ -3,8 +3,6 @@ package logger
 import (
 	"context"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // LogManager 日志管理器
@@ -42,54 +40,41 @@ func (lm *LogManager) SetKeepDays(days int) {
 
 // Start 启动日志管理器
 func (lm *LogManager) Start(ctx context.Context) {
-	logrus.Info("日志管理器启动")
+	log := GetLogger()
+	log.Info("日志管理器启动")
 
-	// 启动日志轮转定时器
-	rotateTicker := time.NewTicker(lm.rotateInterval)
-	defer rotateTicker.Stop()
+	// 执行首次日志轮转
+	if err := RotateLogFile(); err != nil {
+		log.Errorf("日志轮转失败: %v", err)
+	} else {
+		log.Info("执行首次日志轮转")
+	}
 
-	// 启动清理定时器
-	cleanTicker := time.NewTicker(lm.cleanInterval)
-	defer cleanTicker.Stop()
-
-	// 计算下一个午夜时间用于日志轮转
-	now := time.Now()
-	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-	timeToMidnight := nextMidnight.Sub(now)
-
-	// 设置首次轮转时间为下一个午夜
-	firstRotateTimer := time.NewTimer(timeToMidnight)
-	defer firstRotateTimer.Stop()
+	// 创建定时器
+	ticker := time.NewTicker(24 * time.Hour) // 每24小时执行一次
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Info("日志管理器收到停止信号")
+			log.Info("日志管理器收到停止信号")
 			return
-
 		case <-lm.stopChan:
-			logrus.Info("日志管理器手动停止")
+			log.Info("日志管理器手动停止")
 			return
-
-		case <-firstRotateTimer.C:
-			// 首次轮转后，重置定时器为24小时间隔
-			logrus.Info("执行首次日志轮转")
+		case <-ticker.C:
+			// 执行日志轮转
 			if err := RotateLogFile(); err != nil {
-				logrus.Errorf("日志轮转失败: %v", err)
-			}
-			// 重置为正常的24小时间隔
-			rotateTicker.Reset(lm.rotateInterval)
-
-		case <-rotateTicker.C:
-			logrus.Info("执行定时日志轮转")
-			if err := RotateLogFile(); err != nil {
-				logrus.Errorf("日志轮转失败: %v", err)
+				log.Errorf("日志轮转失败: %v", err)
+			} else {
+				log.Info("执行定时日志轮转")
 			}
 
-		case <-cleanTicker.C:
-			logrus.Infof("执行日志清理，保留 %d 天", lm.keepDays)
+			// 执行日志清理
 			if err := CleanOldLogs(lm.keepDays); err != nil {
-				logrus.Errorf("日志清理失败: %v", err)
+				log.Errorf("日志清理失败: %v", err)
+			} else {
+				log.Infof("执行日志清理，保留 %d 天", lm.keepDays)
 			}
 		}
 	}
@@ -100,14 +85,16 @@ func (lm *LogManager) Stop() {
 	close(lm.stopChan)
 }
 
-// ForceRotate 强制轮转日志文件
+// ForceRotate 强制执行日志轮转
 func (lm *LogManager) ForceRotate() error {
-	logrus.Info("强制执行日志轮转")
+	log := GetLogger()
+	log.Info("强制执行日志轮转")
 	return RotateLogFile()
 }
 
-// ForceClean 强制清理旧日志
-func (lm *LogManager) ForceClean() error {
-	logrus.Infof("强制执行日志清理，保留 %d 天", lm.keepDays)
+// ForceCleanup 强制执行日志清理
+func (lm *LogManager) ForceCleanup() error {
+	log := GetLogger()
+	log.Infof("强制执行日志清理，保留 %d 天", lm.keepDays)
 	return CleanOldLogs(lm.keepDays)
 }

@@ -23,9 +23,13 @@ import (
 )
 
 func main() {
+	// 初始化日志系统（需要在最早期初始化）
+	logger.Init()
+	log := logger.GetLogger()
+
 	// 加载环境变量
 	if err := godotenv.Load(); err != nil {
-		logrus.Warn("没有找到.env文件")
+		log.Warn("没有找到.env文件")
 	}
 
 	// 初始化配置
@@ -33,11 +37,8 @@ func main() {
 
 	// 验证配置
 	if err := cfg.Validate(); err != nil {
-		logrus.Fatal("配置验证失败: ", err)
+		log.Fatal("配置验证失败: ", err)
 	}
-
-	// 初始化日志系统
-	logger.Init()
 
 	// 创建日志管理器
 	logManager := logger.NewLogManager()
@@ -52,15 +53,15 @@ func main() {
 	// 设置日志级别
 	level, err := logrus.ParseLevel(cfg.LogLevel)
 	if err != nil {
-		logrus.SetLevel(logrus.InfoLevel)
+		logger.SetLevel("info")
 	} else {
-		logrus.SetLevel(level)
+		logger.SetLevel(level.String())
 	}
 
 	// 初始化MongoDB数据库
 	db, err := repository.NewMongoDB(cfg.Database.MongoURL)
 	if err != nil {
-		logrus.Fatal("连接MongoDB失败: ", err)
+		log.Fatal("连接MongoDB失败: ", err)
 	}
 	defer db.Close()
 
@@ -92,7 +93,7 @@ func main() {
 
 	// 根据环境变量决定是否启用详细日志
 	if os.Getenv("ENABLE_DETAILED_LOGGING") == "true" {
-		logrus.Info("启用详细HTTP请求日志记录")
+		log.Info("启用详细HTTP请求日志记录")
 		r.Use(middleware.DetailedLogger())
 	}
 
@@ -118,9 +119,9 @@ func main() {
 
 	// 启动服务器
 	go func() {
-		logrus.Infof("API服务器启动在端口 %s", cfg.Port)
+		log.Infof("API服务器启动在端口 %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logrus.Fatal("启动服务器失败: ", err)
+			log.Fatal("启动服务器失败: ", err)
 		}
 	}()
 
@@ -128,7 +129,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logrus.Info("正在关闭服务器...")
+	log.Info("正在关闭服务器...")
 
 	// 取消上下文，停止日志管理器
 	cancel()
@@ -137,8 +138,8 @@ func main() {
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logrus.Fatal("服务器强制关闭: ", err)
+		log.Fatal("服务器强制关闭: ", err)
 	}
 
-	logrus.Info("服务器已退出")
+	log.Info("服务器已退出")
 }

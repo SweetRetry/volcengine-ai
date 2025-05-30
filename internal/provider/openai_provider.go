@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	"volcengine-go-server/config"
 	"volcengine-go-server/internal/service"
+	"volcengine-go-server/pkg/logger"
 )
 
 // OpenAIProvider OpenAI任务分发器 - Provider层
@@ -32,12 +31,13 @@ func (p *OpenAIProvider) GetProviderName() string {
 
 // DispatchImageTask 分发图像生成任务
 func (p *OpenAIProvider) DispatchImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
-	logrus.Infof("OpenAI图像任务分发: taskID=%s, model=%s", taskID, model)
+	log := logger.GetLogger()
+	log.Infof("OpenAI图像任务分发: taskID=%s, model=%s", taskID, model)
 
 	// 根据模型选择不同的处理方法
 	switch model {
 	case config.OpenAIImageModel: // dall-e-3
-		logrus.Infof("分发到DALL-E图像生成服务: %s", taskID)
+		log.Infof("分发到DALL-E图像生成服务: %s", taskID)
 		return p.openaiService.GenerateImageByDALLE(ctx, taskID, input)
 
 	default:
@@ -47,7 +47,8 @@ func (p *OpenAIProvider) DispatchImageTask(ctx context.Context, taskID string, m
 
 // DispatchTextTask 分发文本生成任务
 func (p *OpenAIProvider) DispatchTextTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
-	logrus.Infof("OpenAI文本任务分发: taskID=%s, model=%s", taskID, model)
+	log := logger.GetLogger()
+	log.Infof("OpenAI文本任务分发: taskID=%s, model=%s", taskID, model)
 
 	// 根据模型选择不同的处理方法
 	switch model {
@@ -60,7 +61,8 @@ func (p *OpenAIProvider) DispatchTextTask(ctx context.Context, taskID string, mo
 
 // DispatchVideoTask 分发视频生成任务
 func (p *OpenAIProvider) DispatchVideoTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
-	logrus.Infof("OpenAI视频任务分发: taskID=%s, model=%s", taskID, model)
+	log := logger.GetLogger()
+	log.Infof("OpenAI视频任务分发: taskID=%s, model=%s", taskID, model)
 
 	// 根据模型选择不同的处理方法
 	switch model {

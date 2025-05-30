@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"volcengine-go-server/pkg/logger"
 )
 
 // OpenAIService OpenAI服务 - Service层，负责具体的API调用实现
@@ -25,7 +25,8 @@ func NewOpenAIService(apiKey string, taskService *TaskService) *OpenAIService {
 // GenerateImageByDALLE DALL-E图像生成具体实现
 func (s *OpenAIService) GenerateImageByDALLE(ctx context.Context, taskID string, input map[string]interface{}) error {
 	// TODO: 实现OpenAI DALL-E图像生成逻辑
-	logrus.Infof("DALL-E图像生成任务处理中: %s", taskID)
+	log := logger.GetLogger()
+	log.Infof("DALL-E图像生成任务处理中: %s", taskID)
 
 	// 模拟处理时间
 	time.Sleep(3 * time.Second)
@@ -33,18 +34,19 @@ func (s *OpenAIService) GenerateImageByDALLE(ctx context.Context, taskID string,
 	// 模拟成功结果
 	imageURL := "https://example.com/generated-image.jpg"
 	if err := s.taskService.UpdateTaskResult(ctx, taskID, imageURL); err != nil {
-		logrus.Errorf("更新任务状态失败: %v", err)
+		log.Errorf("更新任务状态失败: %v", err)
 		return err
 	}
 
-	logrus.Infof("DALL-E图像生成任务完成: %s", taskID)
+	log.Infof("DALL-E图像生成任务完成: %s", taskID)
 	return nil
 }
 
 // GenerateTextByGPT GPT文本生成具体实现
 func (s *OpenAIService) GenerateTextByGPT(ctx context.Context, taskID string, input map[string]interface{}) error {
 	// TODO: 实现OpenAI GPT文本生成逻辑
-	logrus.Infof("GPT文本生成任务处理中: %s", taskID)
+	log := logger.GetLogger()
+	log.Infof("GPT文本生成任务处理中: %s", taskID)
 
 	// 模拟处理时间
 	time.Sleep(1 * time.Second)
@@ -52,18 +54,19 @@ func (s *OpenAIService) GenerateTextByGPT(ctx context.Context, taskID string, in
 	// 模拟成功结果
 	textResult := "这是GPT生成的文本内容"
 	if err := s.taskService.UpdateTaskResult(ctx, taskID, textResult); err != nil {
-		logrus.Errorf("更新任务状态失败: %v", err)
+		log.Errorf("更新任务状态失败: %v", err)
 		return err
 	}
 
-	logrus.Infof("GPT文本生成任务完成: %s", taskID)
+	log.Infof("GPT文本生成任务完成: %s", taskID)
 	return nil
 }
 
 // GenerateVideoBySora Sora视频生成具体实现
 func (s *OpenAIService) GenerateVideoBySora(ctx context.Context, taskID string, input map[string]interface{}) error {
 	// TODO: 实现OpenAI Sora视频生成逻辑
-	logrus.Infof("Sora视频生成任务处理中: %s", taskID)
+	log := logger.GetLogger()
+	log.Infof("Sora视频生成任务处理中: %s", taskID)
 
 	// 模拟处理时间（视频生成通常需要更长时间）
 	time.Sleep(15 * time.Second)
@@ -71,10 +74,10 @@ func (s *OpenAIService) GenerateVideoBySora(ctx context.Context, taskID string, 
 	// 模拟成功结果
 	videoURL := "https://example.com/generated-video.mp4"
 	if err := s.taskService.UpdateTaskResult(ctx, taskID, videoURL); err != nil {
-		logrus.Errorf("更新任务状态失败: %v", err)
+		log.Errorf("更新任务状态失败: %v", err)
 		return err
 	}
 
-	logrus.Infof("Sora视频生成任务完成: %s", taskID)
+	log.Infof("Sora视频生成任务完成: %s", taskID)
 	return nil
 }

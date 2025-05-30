@@ -68,6 +68,26 @@ func GetLogger() *logrus.Logger {
 	return Logger
 }
 
+// SetLevel 设置日志级别
+func SetLevel(level string) {
+	if Logger == nil {
+		Init()
+	}
+
+	switch level {
+	case "debug":
+		Logger.SetLevel(logrus.DebugLevel)
+	case "info":
+		Logger.SetLevel(logrus.InfoLevel)
+	case "warn":
+		Logger.SetLevel(logrus.WarnLevel)
+	case "error":
+		Logger.SetLevel(logrus.ErrorLevel)
+	default:
+		Logger.SetLevel(logrus.InfoLevel)
+	}
+}
+
 // RotateLogFile 轮转日志文件（可选的手动轮转功能）
 func RotateLogFile() error {
 	if Logger == nil {

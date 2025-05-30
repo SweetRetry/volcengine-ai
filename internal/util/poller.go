@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"volcengine-go-server/pkg/logger"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -29,7 +31,7 @@ func DefaultPollConfig(taskType string) *PollConfig {
 		MaxRetries:    60,
 		RetryInterval: 10 * time.Second,
 		TaskType:      taskType,
-		Logger:        logrus.New(),
+		Logger:        logger.GetLogger(),
 	}
 }
 
@@ -39,7 +41,7 @@ func NewPollConfig(taskType string, maxRetries int, retryInterval time.Duration)
 		MaxRetries:    maxRetries,
 		RetryInterval: retryInterval,
 		TaskType:      taskType,
-		Logger:        logrus.New(),
+		Logger:        logger.GetLogger(),
 	}
 }
 
@@ -57,7 +59,7 @@ func PollTaskResult(ctx context.Context, taskID string, checker TaskResultChecke
 	}
 
 	if config.Logger == nil {
-		config.Logger = logrus.New()
+		config.Logger = logger.GetLogger()
 	}
 
 	config.Logger.Infof("开始轮询%s任务结果: taskID=%s, maxRetries=%d, interval=%v",
@@ -120,4 +122,39 @@ func PollTaskResultAsync(ctx context.Context, taskID string, checker TaskResultC
 type PollResult struct {
 	Result interface{}
 	Error  error
+}
+
+// PollerConfig 轮询器配置
+type PollerConfig struct {
+	Interval time.Duration
+	Timeout  time.Duration
+	Logger   *logrus.Logger
+}
+
+// DefaultPollerConfig 默认轮询器配置
+func DefaultPollerConfig() *PollerConfig {
+	return &PollerConfig{
+		Interval: 5 * time.Second,
+		Timeout:  30 * time.Second,
+		Logger:   logger.GetLogger(),
+	}
+}
+
+// NewPollerConfig 创建轮询器配置
+func NewPollerConfig(interval, timeout time.Duration) *PollerConfig {
+	return &PollerConfig{
+		Interval: interval,
+		Timeout:  timeout,
+		Logger:   logger.GetLogger(),
+	}
+}
+
+// SetLogger 设置日志器
+func (config *PollerConfig) SetLogger(log *logrus.Logger) *PollerConfig {
+	if log == nil {
+		config.Logger = logger.GetLogger()
+	} else {
+		config.Logger = log
+	}
+	return config
 }

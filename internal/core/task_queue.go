@@ -11,6 +11,7 @@ import (
 
 	"volcengine-go-server/config"
 	"volcengine-go-server/internal/service"
+	"volcengine-go-server/pkg/logger"
 )
 
 // TaskQueue 任务队列系统
@@ -21,6 +22,7 @@ type TaskQueue struct {
 	// 使用服务注册器替代具体的服务依赖
 	serviceRegistry *ServiceRegistry
 	taskService     *service.TaskService
+	log             *logrus.Logger
 }
 
 // 任务类型常量
@@ -49,7 +51,7 @@ func NewTaskQueue(
 	// 解析Redis URL
 	opt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
-		logrus.Fatal("解析Redis URL失败: ", err)
+		logger.GetLogger().Fatal("解析Redis URL失败: ", err)
 	}
 
 	client := asynq.NewClient(opt)
@@ -62,9 +64,9 @@ func NewTaskQueue(
 			"low":      config.QueueLowWeight,
 		},
 		ErrorHandler: asynq.ErrorHandlerFunc(func(ctx context.Context, task *asynq.Task, err error) {
-			logrus.Errorf("任务执行失败: %v, 错误: %v", task.Type(), err)
+			logger.GetLogger().Errorf("任务执行失败: %v, 错误: %v", task.Type(), err)
 		}),
-		Logger: logrus.New(),
+		Logger: logger.GetLogger(),
 	})
 
 	return &TaskQueue{
@@ -73,6 +75,7 @@ func NewTaskQueue(
 		opt:             opt,
 		serviceRegistry: serviceRegistry,
 		taskService:     taskService,
+		log:             logger.GetLogger(),
 	}
 }
 
@@ -121,9 +124,9 @@ func (r *TaskQueue) StartWorker(ctx context.Context) {
 	mux.HandleFunc(TypeImageGeneration, r.handleImageGeneration)
 	mux.HandleFunc(TypeVideoGeneration, r.handleVideoGeneration)
 
-	logrus.Info("队列工作器启动中...")
+	r.log.Info("队列工作器启动中...")
 	if err := r.server.Start(mux); err != nil {
-		logrus.Fatal("启动队列工作器失败: ", err)
+		r.log.Fatal("启动队列工作器失败: ", err)
 	}
 }
 
@@ -144,25 +147,25 @@ func (r *TaskQueue) handleTextGeneration(ctx context.Context, task *asynq.Task) 
 		return err
 	}
 
-	logrus.Infof("处理文本生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
+	r.log.Infof("处理文本生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
 	// 获取对应的AI任务分发器
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		logrus.Errorf(errorMsg)
+		r.log.Errorf(errorMsg)
 		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用分发器的文本生成分发方法
 	if err := dispatcher.DispatchTextTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
-		logrus.Errorf("文本生成任务分发失败: %v", err)
+		r.log.Errorf("文本生成任务分发失败: %v", err)
 		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
 		return fmt.Errorf("文本生成任务分发失败: %v: %w", err, asynq.SkipRetry)
 	}
 
-	logrus.Infof("文本生成任务完成: %s", payload.TaskID)
+	r.log.Infof("文本生成任务完成: %s", payload.TaskID)
 	return nil
 }
 
@@ -173,24 +176,24 @@ func (r *TaskQueue) handleImageGeneration(ctx context.Context, task *asynq.Task)
 		return err
 	}
 
-	logrus.Infof("处理图像生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
+	r.log.Infof("处理图像生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
 	// 获取对应的AI任务分发器
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		logrus.Errorf(errorMsg)
+		r.log.Errorf(errorMsg)
 		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用分发器的图像生成分发方法
 	if err := dispatcher.DispatchImageTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
-		logrus.Errorf("图像生成任务分发失败: %v", err)
+		r.log.Errorf("图像生成任务分发失败: %v", err)
 		return err // 让任务重试
 	}
 
-	logrus.Infof("图像生成任务完成: %s", payload.TaskID)
+	r.log.Infof("图像生成任务完成: %s", payload.TaskID)
 	return nil
 }
 
@@ -201,24 +204,24 @@ func (r *TaskQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task)
 		return err
 	}
 
-	logrus.Infof("处理视频生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
+	r.log.Infof("处理视频生成任务: %s, 用户: %s, 提供商: %s", payload.TaskID, payload.UserID, payload.Provider)
 
 	// 获取对应的AI任务分发器
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		logrus.Errorf(errorMsg)
+		r.log.Errorf(errorMsg)
 		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
 
 	// 调用分发器的视频生成分发方法
 	if err := dispatcher.DispatchVideoTask(ctx, payload.TaskID, payload.Model, payload.Input); err != nil {
-		logrus.Errorf("视频生成任务分发失败: %v", err)
+		r.log.Errorf("视频生成任务分发失败: %v", err)
 		return err // 让任务重试
 	}
 
-	logrus.Infof("视频生成任务完成: %s", payload.TaskID)
+	r.log.Infof("视频生成任务完成: %s", payload.TaskID)
 	return nil
 }
 
