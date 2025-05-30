@@ -73,6 +73,23 @@ test-coverage:
 	$(GOTEST) -v -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out
 	
+# 测试日志系统
+test-logger:
+	@echo "=== 测试日志系统 ==="
+	@echo "检查日志目录..."
+	@mkdir -p logs
+	@echo "运行日志测试..."
+	@go run -ldflags="-X main.testMode=true" cmd/server/main.go &
+	@sleep 3
+	@echo "发送测试请求..."
+	@curl -s http://localhost:8080/health > /dev/null || true
+	@sleep 1
+	@pkill -f "cmd/server/main.go" || true
+	@echo "检查日志文件..."
+	@ls -la logs/ 2>/dev/null || echo "logs目录为空"
+	@echo "显示最新日志内容..."
+	@tail -10 logs/app-$(shell date +%Y-%m-%d).log 2>/dev/null || echo "今日日志文件不存在"
+
 # 清理
 clean:
 	$(GOCLEAN)
@@ -92,6 +109,32 @@ show-logs:
 	@echo ""
 	@echo "=== 最新日志内容 ==="
 	@tail -20 logs/app-$(shell date +%Y-%m-%d).log 2>/dev/null || echo "今日日志文件不存在"
+
+# 查看API调用日志
+show-api-logs:
+	@echo "=== API调用日志 ==="
+	@echo "火山方舟API调用:"
+	@grep "GenerateImages" logs/app-*.log 2>/dev/null | tail -5 || echo "无火山方舟API调用记录"
+	@echo ""
+	@echo "即梦AI API调用:"
+	@grep "CVProcess\|CVSubmitTask\|CVGetResult" logs/app-*.log 2>/dev/null | tail -5 || echo "无即梦AI API调用记录"
+	@echo ""
+	@echo "API调用失败:"
+	@grep "API调用失败" logs/app-*.log 2>/dev/null | tail -3 || echo "无API调用失败记录"
+
+# 分析API性能
+analyze-api-performance:
+	@echo "=== API性能分析 ==="
+	@echo "API调用统计:"
+	@grep "api_endpoint" logs/app-*.log 2>/dev/null | jq -r '.api_endpoint' | sort | uniq -c || echo "无API调用记录"
+	@echo ""
+	@echo "慢查询（>1秒）:"
+	@grep "duration_ms" logs/app-*.log 2>/dev/null | jq 'select(.duration_ms > 1000)' | head -5 || echo "无慢查询记录"
+
+# 实时查看日志
+tail-logs:
+	@echo "实时查看今日日志（Ctrl+C退出）..."
+	@tail -f logs/app-$(shell date +%Y-%m-%d).log 2>/dev/null || echo "今日日志文件不存在"
 
 # 格式化代码
 fmt:

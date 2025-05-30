@@ -19,18 +19,16 @@ type AITaskRequest struct {
 	UserID   string `json:"user_id" binding:"required"`
 	Provider string `json:"provider" binding:"required"` // 设为必填字段
 
-	// 图像生成特有字段
-	Size string `json:"size,omitempty"`
+	// 图像和视频生成共用字段
+	AspectRatio string `json:"aspect_ratio,omitempty"` // 宽高比例
 
 	// 文本生成特有字段
 	MaxTokens   int     `json:"max_tokens,omitempty"`
 	Temperature float64 `json:"temperature,omitempty"`
 
 	// 视频生成特有字段
-	Duration    int    `json:"duration,omitempty"`
-	ReqKey      string `json:"req_key,omitempty"`      // 服务标识
-	Seed        int64  `json:"seed,omitempty"`         // 随机种子
-	AspectRatio string `json:"aspect_ratio,omitempty"` // 视频尺寸比例
+	Duration int   `json:"duration,omitempty"`
+	Seed     int64 `json:"seed,omitempty"` // 随机种子
 }
 
 // AI任务类型
@@ -116,12 +114,12 @@ func (h *AIHandler) createTask(c *gin.Context, taskType AITaskType) {
 func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, provider, model string) {
 	// 创建图像任务输入
 	input := &models.TaskInput{
-		Prompt:   req.Prompt,
-		UserID:   req.UserID,
-		Type:     "image",
-		Model:    model,
-		Provider: provider,
-		Size:     req.Size,
+		Prompt:      req.Prompt,
+		UserID:      req.UserID,
+		Type:        "image",
+		Model:       model,
+		Provider:    provider,
+		AspectRatio: req.AspectRatio,
 	}
 
 	// 在任务系统中创建记录
@@ -142,8 +140,8 @@ func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, 
 		Provider: provider,
 		Model:    model,
 		Input: map[string]interface{}{
-			"prompt": req.Prompt,
-			"size":   req.Size,
+			"prompt":       req.Prompt,
+			"aspect_ratio": req.AspectRatio,
 		},
 	}
 
@@ -193,7 +191,6 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 		Type:        "video",
 		Model:       model,
 		Provider:    provider,
-		ReqKey:      req.ReqKey,
 		Seed:        req.Seed,
 		AspectRatio: req.AspectRatio,
 	}
@@ -217,7 +214,6 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 		Model:    model,
 		Input: map[string]interface{}{
 			"prompt":       req.Prompt,
-			"req_key":      task.ReqKey,
 			"seed":         task.Seed,
 			"aspect_ratio": task.AspectRatio,
 		},
@@ -241,7 +237,6 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 			"status":       config.TaskStatusPending,
 			"provider":     provider,
 			"model":        model,
-			"req_key":      task.ReqKey,
 			"seed":         task.Seed,
 			"aspect_ratio": task.AspectRatio,
 		},
@@ -356,12 +351,11 @@ func (h *AIHandler) respondWithTaskResult(c *gin.Context, task *models.Task) {
 		if task.ImageURL != "" {
 			responseData["image_url"] = task.ImageURL
 		}
-		responseData["size"] = task.Size
+		responseData["aspect_ratio"] = task.AspectRatio
 	case models.TaskTypeVideo:
 		if task.VideoURL != "" {
 			responseData["video_url"] = task.VideoURL
 		}
-		responseData["req_key"] = task.ReqKey
 		responseData["seed"] = task.Seed
 		responseData["aspect_ratio"] = task.AspectRatio
 	case models.TaskTypeText:

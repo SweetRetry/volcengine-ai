@@ -12,14 +12,12 @@ type TaskInput struct {
 	Model    string `json:"model"`
 	Provider string `json:"provider"`
 
-	// 图像生成特有字段
-	Size string `json:"size,omitempty"`
-	N    int    `json:"n,omitempty"`
+	// 图像和视频生成共用字段
+	AspectRatio string `json:"aspect_ratio,omitempty"` // 宽高比例
+	N           int    `json:"n,omitempty"`            // 生成数量
 
 	// 视频生成特有字段
-	ReqKey      string `json:"req_key,omitempty"`
-	Seed        int64  `json:"seed,omitempty"`
-	AspectRatio string `json:"aspect_ratio,omitempty"`
+	Seed int64 `json:"seed,omitempty"` // 随机种子
 
 	// 文本生成特有字段
 	MaxTokens   int     `json:"max_tokens,omitempty"`
@@ -39,16 +37,16 @@ type Task struct {
 	Created  time.Time `json:"created" bson:"created"`
 	Updated  time.Time `json:"updated" bson:"updated"`
 
+	// 图像和视频生成共用字段
+	AspectRatio string `json:"aspect_ratio,omitempty" bson:"aspect_ratio,omitempty"` // 宽高比例
+
 	// 图像生成特有字段
-	Size     string `json:"size,omitempty" bson:"size,omitempty"`
 	N        int    `json:"n,omitempty" bson:"n,omitempty"`
 	ImageURL string `json:"image_url,omitempty" bson:"image_url,omitempty"`
 
 	// 视频生成特有字段
-	ReqKey      string `json:"req_key,omitempty" bson:"req_key,omitempty"`           // 服务标识
-	Seed        int64  `json:"seed,omitempty" bson:"seed,omitempty"`                 // 随机种子
-	AspectRatio string `json:"aspect_ratio,omitempty" bson:"aspect_ratio,omitempty"` // 视频尺寸比例
-	VideoURL    string `json:"video_url,omitempty" bson:"video_url,omitempty"`       // 生成的视频URL
+	Seed     int64  `json:"seed,omitempty" bson:"seed,omitempty"`           // 随机种子
+	VideoURL string `json:"video_url,omitempty" bson:"video_url,omitempty"` // 生成的视频URL
 
 	// 文本生成特有字段
 	MaxTokens   int     `json:"max_tokens,omitempty" bson:"max_tokens,omitempty"`

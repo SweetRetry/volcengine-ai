@@ -12,6 +12,8 @@ import (
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 
 	"volcengine-go-server/config"
+	"volcengine-go-server/internal/util"
+	"volcengine-go-server/pkg/logger"
 )
 
 // VolcengineService 火山引擎AI服务 - Service层，负责具体的API调用实现
@@ -49,9 +51,7 @@ type ImageData struct {
 
 // 即梦AI图像生成响应结构
 type JimengImageResult struct {
-	ImageURL    string `json:"image_url,omitempty"`    // 图片URL
-	ImageBase64 string `json:"image_base64,omitempty"` // 图片Base64数据
-	Format      string `json:"format"`                 // 返回格式类型：url 或 base64
+	ImageURL string `json:"image_url"` // 图片URL
 }
 
 type VolcJimentImageRequest struct {
@@ -60,6 +60,36 @@ type VolcJimentImageRequest struct {
 	Height    string `json:"height"`
 	UsePreLLM bool   `json:"use_pre_llm"`
 	UseSr     bool   `json:"use_sr"`
+}
+
+// 即梦AI视频生成请求结构
+type JimengVideoRequest struct {
+	Prompt      string `json:"prompt"`                 // 必填：生成视频的提示词，支持中英文，150字符以内
+	Seed        int    `json:"seed,omitempty"`         // 可选：随机种子，默认-1（随机）
+	AspectRatio string `json:"aspect_ratio,omitempty"` // 可选：生成视频的尺寸，默认16:9
+}
+
+// 即梦AI视频生成结果
+type JimengVideoResult struct {
+	VideoURL string `json:"video_url"` // 视频URL
+	Status   string `json:"status"`    // 任务状态
+}
+
+// JimengVideoResultChecker 即梦AI视频结果检查器
+type JimengVideoResultChecker struct {
+	service *VolcengineService
+}
+
+// CheckResult 实现util.TaskResultChecker接口
+func (c *JimengVideoResultChecker) CheckResult(ctx context.Context, taskID string) (interface{}, bool, error) {
+	result, err := c.service.queryJimengVideoResult(ctx, taskID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// 检查任务状态
+	isCompleted := result.Status == "done"
+	return result, isCompleted, nil
 }
 
 // NewVolcengineService 创建火山引擎AI服务实例
@@ -83,7 +113,7 @@ func NewVolcengineService(cfg config.AIConfig, taskService *TaskService) *Volcen
 		config:       cfg,
 		client:       client,
 		visualClient: visualClient,
-		logger:       logrus.New(),
+		logger:       logger.GetLogger(), // 使用全局日志记录器
 		taskService:  taskService,
 	}
 }
@@ -184,24 +214,11 @@ func (s *VolcengineService) GenerateImageByJimeng(ctx context.Context, taskID st
 		return err
 	}
 
-	s.logger.Infof("即梦AI图像生成成功: %s (格式: %s)", taskID, result.Format)
+	s.logger.Infof("即梦AI图像生成成功: %s", taskID)
 
-	// 根据返回格式处理结果
-	var imageURL string
-	switch result.Format {
-	case "url":
-		imageURL = result.ImageURL
-	case "base64":
-		// 如果返回的是Base64，可以选择保存到文件服务器或直接存储
-		// 这里简化处理，直接使用Base64数据作为"URL"（实际应用中需要上传到文件服务器）
-		imageURL = "data:image/jpeg;base64," + result.ImageBase64
-		s.logger.Infof("收到Base64格式图片，长度: %d", len(result.ImageBase64))
-	default:
-		errorMsg := fmt.Sprintf("未知的图片格式: %s", result.Format)
-		s.logger.Errorf(errorMsg)
-		s.taskService.UpdateTaskError(ctx, taskID, errorMsg)
-		return fmt.Errorf(errorMsg)
-	}
+	// 获取图片URL
+	imageURL := result.ImageURL
+	s.logger.Infof("即梦AI图像生成任务完成: %s, 图像URL: %s", taskID, imageURL)
 
 	// 更新数据库中的任务状态
 	if err := s.taskService.UpdateTaskResult(ctx, taskID, imageURL); err != nil {
@@ -227,19 +244,77 @@ func (s *VolcengineService) GenerateTextByDoubao(ctx context.Context, taskID str
 
 // GenerateVideoByJimeng 即梦AI视频生成具体实现
 func (s *VolcengineService) GenerateVideoByJimeng(ctx context.Context, taskID string, input map[string]interface{}) error {
-	// TODO: 实现即梦AI视频生成逻辑
-	s.logger.Infof("即梦AI视频生成任务处理中: %s", taskID)
+	s.logger.Infof("即梦AI视频生成开始: taskID=%s", taskID)
 
-	// 模拟处理时间（视频生成通常需要更长时间）
-	time.Sleep(10 * time.Second)
+	// 从input参数中获取任务信息
+	prompt, ok := input["prompt"].(string)
+	if !ok {
+		err := fmt.Errorf("无效的prompt参数")
+		s.logger.Errorf("获取任务输入失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
 
-	s.logger.Infof("即梦AI视频生成任务完成: %s", taskID)
+	// 检查prompt长度限制
+	if len(prompt) > 150 {
+		err := fmt.Errorf("prompt长度超过150字符限制，当前长度: %d", len(prompt))
+		s.logger.Errorf("prompt长度检查失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	aspectRatio, _ := input["aspect_ratio"].(string)
+	if aspectRatio == "" {
+		aspectRatio = "16:9" // 默认比例
+	}
+
+	seed := -1 // 默认随机种子
+	if seedValue, exists := input["seed"]; exists {
+		if seedInt, ok := seedValue.(int); ok {
+			seed = seedInt
+		}
+	}
+
+	// 构建即梦AI视频生成请求参数
+	request := &JimengVideoRequest{
+		Prompt:      prompt,
+		Seed:        seed,
+		AspectRatio: aspectRatio,
+	}
+
+	// 提交视频生成任务
+	taskID, err := s.submitJimengVideoTask(ctx, request)
+	if err != nil {
+		s.logger.Errorf("提交即梦AI视频任务失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	s.logger.Infof("即梦AI视频任务已提交，外部任务ID: %s", taskID)
+
+	// 轮询任务结果
+	result, err := s.pollJimengVideoResult(ctx, taskID)
+	if err != nil {
+		s.logger.Errorf("轮询即梦AI视频任务结果失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	s.logger.Infof("即梦AI视频生成成功: %s, 视频URL: %s", taskID, result.VideoURL)
+
+	// 更新数据库中的任务状态
+	if err := s.taskService.UpdateTaskResult(ctx, taskID, result.VideoURL); err != nil {
+		s.logger.Errorf("更新任务状态失败: %v", err)
+		return err
+	}
+
+	s.logger.Infof("即梦AI视频任务状态已更新为完成: %s", taskID)
 	return nil
 }
 
 // generateImage 生成图像（同步）- 内部方法
 func (s *VolcengineService) generateImage(ctx context.Context, request *VolcengineImageRequest) (*VolcengineImageResponse, error) {
-	s.logger.Infof("生成图像: prompt=%s", request.Prompt)
+	s.logger.Infof("开始调用火山方舟图像生成API: prompt=%s", request.Prompt)
 
 	// 设置默认模型
 	modelID := request.Model
@@ -262,12 +337,35 @@ func (s *VolcengineService) generateImage(ctx context.Context, request *Volcengi
 		Watermark: &watermark,
 	}
 
+	// 记录详细的API调用信息
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "GenerateImages",
+		"model":        modelID,
+		"prompt":       request.Prompt,
+		"size":         size,
+		"watermark":    watermark,
+	}).Info("火山方舟API调用开始")
+
 	// 调用火山方舟图像生成API
+	startTime := time.Now()
 	imagesResponse, err := s.client.GenerateImages(ctx, generateReq)
+	duration := time.Since(startTime)
+
 	if err != nil {
-		s.logger.Errorf("图像生成失败: %v", err)
+		s.logger.WithFields(logrus.Fields{
+			"api_endpoint": "GenerateImages",
+			"duration_ms":  duration.Milliseconds(),
+			"error":        err.Error(),
+		}).Error("火山方舟API调用失败")
 		return nil, fmt.Errorf("图像生成失败: %v", err)
 	}
+
+	// 记录成功的API调用
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint":   "GenerateImages",
+		"duration_ms":    duration.Milliseconds(),
+		"response_count": len(imagesResponse.Data),
+	}).Info("火山方舟API调用成功")
 
 	// 转换响应格式
 	response := &VolcengineImageResponse{
@@ -279,6 +377,7 @@ func (s *VolcengineService) generateImage(ctx context.Context, request *Volcengi
 		response.Data[i] = ImageData{
 			URL: *data.Url,
 		}
+		s.logger.Infof("生成图片 %d: URL=%s", i+1, *data.Url)
 	}
 
 	s.logger.Infof("图像生成成功，生成了 %d 张图片", len(response.Data))
@@ -287,7 +386,7 @@ func (s *VolcengineService) generateImage(ctx context.Context, request *Volcengi
 
 // generateImageByJimeng 即梦AI图像生成 - 内部方法
 func (s *VolcengineService) generateImageByJimeng(ctx context.Context, request *VolcJimentImageRequest) (*JimengImageResult, error) {
-	s.logger.Infof("提交即梦AI图像生成任务: prompt=%s", request.Prompt)
+	s.logger.Infof("开始调用即梦AI图像生成API: prompt=%s", request.Prompt)
 
 	// 构建即梦AI任务参数 - 根据官方文档
 	taskParams := map[string]interface{}{
@@ -300,16 +399,40 @@ func (s *VolcengineService) generateImageByJimeng(ctx context.Context, request *
 		"return_url":  true,                    // 返回图片链接
 	}
 
-	s.logger.Infof("提交任务参数: %v", taskParams)
-	// 调用CVSubmitTask提交任务
+	// 记录详细的API调用信息
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVProcess",
+		"req_key":      taskParams["req_key"],
+		"prompt":       taskParams["prompt"],
+		"width":        taskParams["width"],
+		"height":       taskParams["height"],
+		"use_pre_llm":  taskParams["use_pre_llm"],
+		"use_sr":       taskParams["use_sr"],
+		"return_url":   taskParams["return_url"],
+	}).Info("即梦AI API调用开始")
+
+	// 调用CVProcess提交任务
+	startTime := time.Now()
 	resp, status, err := s.visualClient.CVProcess(taskParams)
+	duration := time.Since(startTime)
+
 	if err != nil {
-		s.logger.Errorf("提交即梦AI任务失败: %v", err)
+		s.logger.WithFields(logrus.Fields{
+			"api_endpoint": "CVProcess",
+			"duration_ms":  duration.Milliseconds(),
+			"status_code":  status,
+			"error":        err.Error(),
+		}).Error("即梦AI API调用失败")
 		return nil, fmt.Errorf("提交即梦AI任务失败: %v", err)
 	}
 
-	s.logger.Infof("提交任务响应: %v", resp)
-	s.logger.Infof("提交任务响应状态: %d", status)
+	// 记录成功的API调用
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVProcess",
+		"duration_ms":  duration.Milliseconds(),
+		"status_code":  status,
+		"response":     resp,
+	}).Info("即梦AI API调用成功")
 
 	// 解析响应获取图片数据
 	result, err := s.parseJimengResponse(resp)
@@ -345,7 +468,6 @@ func (s *VolcengineService) parseJimengResponse(resp map[string]interface{}) (*J
 				s.logger.Infof("成功解析图片URL: %s", imageUrl)
 				return &JimengImageResult{
 					ImageURL: imageUrl,
-					Format:   "url",
 				}, nil
 			}
 		}
@@ -357,15 +479,18 @@ func (s *VolcengineService) parseJimengResponse(resp map[string]interface{}) (*J
 			if imageBase64, ok := base64Array[0].(string); ok && imageBase64 != "" {
 				s.logger.Infof("成功解析图片Base64数据，长度: %d", len(imageBase64))
 				return &JimengImageResult{
-					ImageBase64: imageBase64,
-					Format:      "base64",
+					ImageURL: "data:image/jpeg;base64," + imageBase64,
 				}, nil
 			}
 		}
 	}
 
 	// 记录可用的字段以便调试
-	s.logger.Warnf("响应中未找到有效的图片数据，可用字段: %v", getMapKeys(dataMap))
+	availableKeys := make([]string, 0, len(dataMap))
+	for k := range dataMap {
+		availableKeys = append(availableKeys, k)
+	}
+	s.logger.Warnf("响应中未找到有效的图片数据，可用字段: %v", availableKeys)
 	return nil, fmt.Errorf("响应中未找到有效的图片数据")
 }
 
@@ -457,17 +582,185 @@ func (s *VolcengineService) parseOptimalSizeString(aspectRatio string) string {
 	}
 }
 
-// getMapKeys 获取map的所有键，用于调试
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // HealthCheck 健康检查
 func (s *VolcengineService) HealthCheck(ctx context.Context) error {
 	// 简单的健康检查
 	return nil
+}
+
+// submitJimengVideoTask 提交即梦AI视频生成任务
+func (s *VolcengineService) submitJimengVideoTask(ctx context.Context, request *JimengVideoRequest) (string, error) {
+	s.logger.Infof("开始调用即梦AI视频生成API: prompt=%s", request.Prompt)
+
+	// 构建即梦AI视频任务参数
+	taskParams := map[string]interface{}{
+		"req_key":      "jimeng_vgfm_t2v_l20", // 即梦AI视频服务标识
+		"prompt":       request.Prompt,
+		"aspect_ratio": request.AspectRatio,
+	}
+
+	// 如果指定了种子，添加到参数中
+	if request.Seed != -1 {
+		taskParams["seed"] = request.Seed
+	}
+
+	// 记录详细的API调用信息
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVSubmitTask",
+		"req_key":      taskParams["req_key"],
+		"prompt":       taskParams["prompt"],
+		"aspect_ratio": taskParams["aspect_ratio"],
+		"seed":         taskParams["seed"],
+	}).Info("即梦AI视频API调用开始")
+
+	// 调用CVSubmitTask提交任务
+	startTime := time.Now()
+	resp, status, err := s.visualClient.CVSubmitTask(taskParams)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"api_endpoint": "CVSubmitTask",
+			"duration_ms":  duration.Milliseconds(),
+			"status_code":  status,
+			"error":        err.Error(),
+		}).Error("即梦AI视频API调用失败")
+		return "", fmt.Errorf("提交即梦AI视频任务失败: %v", err)
+	}
+
+	// 记录成功的API调用
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVSubmitTask",
+		"duration_ms":  duration.Milliseconds(),
+		"status_code":  status,
+		"response":     resp,
+	}).Info("即梦AI视频API调用成功")
+
+	// 直接从响应中获取taskId
+	taskID, ok := resp["task_id"].(string)
+	if !ok {
+		return "", fmt.Errorf("响应中未找到有效的task_id")
+	}
+
+	s.logger.Infof("即梦AI视频任务提交成功，获得task_id: %s", taskID)
+	return taskID, nil
+}
+
+// pollJimengVideoResult 轮询即梦AI视频生成结果
+func (s *VolcengineService) pollJimengVideoResult(ctx context.Context, taskID string) (*JimengVideoResult, error) {
+	// 创建即梦AI视频结果检查器
+	checker := &JimengVideoResultChecker{service: s}
+
+	// 配置轮询参数
+	config := util.NewPollConfig("即梦AI视频", 60, 10*time.Second).WithLogger(s.logger)
+
+	// 使用通用轮询方法
+	result, err := util.PollTaskResult(ctx, taskID, checker, config)
+	if err != nil {
+		return nil, err
+	}
+
+	// 类型断言转换结果
+	videoResult, ok := result.(*JimengVideoResult)
+	if !ok {
+		return nil, fmt.Errorf("轮询结果类型转换失败")
+	}
+
+	return videoResult, nil
+}
+
+// queryJimengVideoResult 查询即梦AI视频任务结果
+func (s *VolcengineService) queryJimengVideoResult(ctx context.Context, taskID string) (*JimengVideoResult, error) {
+	// 构建查询参数
+	queryParams := map[string]interface{}{
+		"req_key": "jimeng_vgfm_t2v_l20", // 即梦AI视频服务标识
+		"task_id": taskID,
+	}
+
+	// 记录详细的API调用信息
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVGetResult",
+		"req_key":      queryParams["req_key"],
+		"task_id":      queryParams["task_id"],
+	}).Info("即梦AI视频结果查询API调用开始")
+
+	// 调用CVGetResult查询结果
+	startTime := time.Now()
+	resp, status, err := s.visualClient.CVGetResult(queryParams)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"api_endpoint": "CVGetResult",
+			"duration_ms":  duration.Milliseconds(),
+			"status_code":  status,
+			"task_id":      taskID,
+			"error":        err.Error(),
+		}).Error("即梦AI视频结果查询API调用失败")
+		return nil, fmt.Errorf("查询即梦AI视频任务结果失败: %v", err)
+	}
+
+	// 记录成功的API调用
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "CVGetResult",
+		"duration_ms":  duration.Milliseconds(),
+		"status_code":  status,
+		"task_id":      taskID,
+		"response":     resp,
+	}).Info("即梦AI视频结果查询API调用成功")
+
+	// 解析响应获取结果
+	result, err := s.parseJimengVideoResultResponse(resp)
+	if err != nil {
+		s.logger.Errorf("解析即梦AI视频结果响应失败: %v", err)
+		return nil, fmt.Errorf("解析结果响应失败: %v", err)
+	}
+
+	return result, nil
+}
+
+// parseJimengVideoResultResponse 解析即梦AI视频结果响应
+func (s *VolcengineService) parseJimengVideoResultResponse(resp map[string]interface{}) (*JimengVideoResult, error) {
+	// 解析data字段
+	data, exists := resp["data"]
+	if !exists {
+		return nil, fmt.Errorf("响应中缺少data字段")
+	}
+
+	dataMap, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("data字段格式错误")
+	}
+
+	// 获取status
+	status, exists := dataMap["status"]
+	if !exists {
+		return nil, fmt.Errorf("响应中缺少status字段")
+	}
+
+	statusStr, ok := status.(string)
+	if !ok {
+		return nil, fmt.Errorf("status字段格式错误")
+	}
+
+	// 构建结果对象
+	result := &JimengVideoResult{
+		Status: statusStr,
+	}
+
+	// 如果任务完成，获取视频URL
+	if statusStr == "done" {
+		if videoURL, exists := dataMap["video_url"]; exists {
+			if videoURLStr, ok := videoURL.(string); ok && videoURLStr != "" {
+				result.VideoURL = videoURLStr
+			}
+		}
+
+		// 如果没有找到视频URL，任务虽然完成但结果无效
+		if result.VideoURL == "" {
+			return nil, fmt.Errorf("任务已完成但未找到视频URL")
+		}
+	}
+
+	return result, nil
 }

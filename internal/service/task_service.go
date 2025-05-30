@@ -40,19 +40,15 @@ func (s *TaskService) CreateTask(ctx context.Context, input *models.TaskInput) (
 	// 根据任务类型设置特有字段和默认值
 	switch input.Type {
 	case models.TaskTypeImage:
-		task.Size = input.Size
+		task.AspectRatio = input.AspectRatio
 		task.N = input.N
 		if task.N == 0 {
 			task.N = 1
 		}
 	case models.TaskTypeVideo:
-		task.ReqKey = input.ReqKey
 		task.Seed = input.Seed
 		task.AspectRatio = input.AspectRatio
 		// 设置默认值
-		if task.ReqKey == "" {
-			task.ReqKey = config.VolcengineJimengVideoModel
-		}
 		if task.Seed == 0 {
 			task.Seed = config.DefaultVideoSeed
 		}
