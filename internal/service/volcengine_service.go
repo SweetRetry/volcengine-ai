@@ -23,6 +23,12 @@ type VolcengineService struct {
 	taskService  *TaskService
 }
 
+// 即梦AI图像尺寸信息
+type JimengImageSize struct {
+	Width  string `json:"width"`
+	Height string `json:"height"`
+}
+
 // 图像生成请求结构
 type VolcengineImageRequest struct {
 	Prompt string `json:"prompt"`          // 必填：文本描述
@@ -95,16 +101,16 @@ func (s *VolcengineService) GenerateImageByDoubao(ctx context.Context, taskID st
 		return err
 	}
 
-	size, _ := input["size"].(string)
-	if size == "" {
-		size = "1024x1024" // 默认尺寸
+	aspectRatio, _ := input["aspect_ratio"].(string)
+	if aspectRatio == "" {
+		aspectRatio = "1:1" // 默认比例
 	}
 
 	// 构建豆包图像生成请求参数
 	request := &VolcengineImageRequest{
 		Prompt: prompt,
 		Model:  config.VolcengineImageModel,
-		Size:   s.parseOptimalSizeString(size),
+		Size:   s.parseOptimalSizeString(aspectRatio),
 		N:      1, // 生成1张图片
 	}
 
@@ -116,7 +122,7 @@ func (s *VolcengineService) GenerateImageByDoubao(ctx context.Context, taskID st
 		return err
 	}
 
-	s.logger.Infof("豆包图像生成成功: %s (尺寸: %s)", taskID, request.Size)
+	s.logger.Infof("豆包图像生成成功: %s (比例: %s)", taskID, aspectRatio)
 
 	// 检查是否有生成的图像
 	if len(result.Data) == 0 {
@@ -153,16 +159,19 @@ func (s *VolcengineService) GenerateImageByJimeng(ctx context.Context, taskID st
 		return err
 	}
 
-	size, _ := input["size"].(string)
-	if size == "" {
-		size = "1:1" // 默认尺寸
+	aspectRatio, _ := input["aspect_ratio"].(string)
+	if aspectRatio == "" {
+		aspectRatio = "1:1" // 默认比例
 	}
+
+	// 解析即梦AI图像尺寸
+	imageSize := s.parseJimengImageSize(aspectRatio)
 
 	// 构建即梦AI请求参数
 	request := &VolcJimentImageRequest{
 		Prompt:    prompt,
-		Width:     s.parseJimengImageSize(size, "width"),
-		Height:    s.parseJimengImageSize(size, "height"),
+		Width:     imageSize.Width,
+		Height:    imageSize.Height,
 		UsePreLLM: len(prompt) < 4, // prompt小于4才开启扩写
 		UseSr:     true,            // 开启超分
 	}
@@ -360,87 +369,87 @@ func (s *VolcengineService) parseJimengResponse(resp map[string]interface{}) (*J
 	return nil, fmt.Errorf("响应中未找到有效的图片数据")
 }
 
-// parseJimengImageSize 解析即梦AI的尺寸参数
-func (s *VolcengineService) parseJimengImageSize(size string, dimension string) string {
-	switch size {
-	case "1:1", "1024x1024", "":
-		// 1:1 比例 - 512*512
-		if dimension == "width" {
-			return "512"
+// parseJimengImageSize 解析宽高比并返回即梦AI的尺寸参数
+// 即梦AI要求：width和height取值范围[256, 768]，默认值512
+func (s *VolcengineService) parseJimengImageSize(aspectRatio string) JimengImageSize {
+	switch aspectRatio {
+	case "1:1", "":
+		// 1:1 比例 - 512*512 (默认)
+		return JimengImageSize{
+			Width:  "512",
+			Height: "512",
 		}
-		return "512"
-	case "4:3", "1152x864":
-		// 4:3 比例 - 512*384
-		if dimension == "width" {
-			return "512"
+	case "4:3":
+		// 4:3 比例 - 768*576 (在范围内的最大尺寸)
+		return JimengImageSize{
+			Width:  "768",
+			Height: "576",
 		}
-		return "384"
-	case "3:4", "864x1152":
-		// 3:4 比例 - 384*512
-		if dimension == "width" {
-			return "384"
+	case "3:4":
+		// 3:4 比例 - 576*768 (在范围内的最大尺寸)
+		return JimengImageSize{
+			Width:  "576",
+			Height: "768",
 		}
-		return "512"
-	case "3:2", "1248x832":
-		// 3:2 比例 - 512*341
-		if dimension == "width" {
-			return "512"
+	case "3:2":
+		// 3:2 比例 - 768*512
+		return JimengImageSize{
+			Width:  "768",
+			Height: "512",
 		}
-		return "341"
-	case "2:3", "832x1248":
-		// 2:3 比例 - 341*512
-		if dimension == "width" {
-			return "341"
+	case "2:3":
+		// 2:3 比例 - 512*768
+		return JimengImageSize{
+			Width:  "512",
+			Height: "768",
 		}
-		return "512"
-	case "16:9", "1280x720":
-		// 16:9 比例 - 512*288
-		if dimension == "width" {
-			return "512"
+	case "16:9":
+		// 16:9 比例 - 768*432
+		return JimengImageSize{
+			Width:  "768",
+			Height: "432",
 		}
-		return "288"
-	case "9:16", "720x1280":
-		// 9:16 比例 - 288*512
-		if dimension == "width" {
-			return "288"
+	case "9:16":
+		// 9:16 比例 - 432*768
+		return JimengImageSize{
+			Width:  "432",
+			Height: "768",
 		}
-		return "512"
-	case "21:9", "1512x648":
-		// 21:9 比例不在官方推荐中，使用最接近的16:9比例
-		s.logger.Warnf("21:9比例不在即梦AI官方推荐中，使用16:9比例(512*288)替代以获得最佳效果")
-		if dimension == "width" {
-			return "512"
+	case "21:9":
+		// 21:9 比例 - 768*329 (接近21:9比例，在范围内)
+		return JimengImageSize{
+			Width:  "768",
+			Height: "329",
 		}
-		return "288"
 	default:
 		// 默认使用1:1比例 - 512*512
-		s.logger.Warnf("未知尺寸格式 %s，使用默认1:1比例(512*512)", size)
-		if dimension == "width" {
-			return "512"
+		s.logger.Warnf("未知宽高比格式 %s，使用默认1:1比例(512*512)", aspectRatio)
+		return JimengImageSize{
+			Width:  "512",
+			Height: "512",
 		}
-		return "512"
 	}
 }
 
-// parseOptimalSizeString 解析并返回最优的图像尺寸字符串
-func (s *VolcengineService) parseOptimalSizeString(size string) string {
+// parseOptimalSizeString 解析宽高比并返回最优的图像尺寸字符串（用于豆包模型）
+func (s *VolcengineService) parseOptimalSizeString(aspectRatio string) string {
 	// 火山方舟支持的尺寸格式
-	switch size {
-	case "1:1", "1024x1024", "":
+	switch aspectRatio {
+	case "1:1", "":
 		return config.ImageSize1x1
-	case "3:4", "864x1152":
+	case "3:4":
 		return config.ImageSize3x4
-	case "4:3", "1152x864":
+	case "4:3":
 		return config.ImageSize4x3
-	case "16:9", "1280x720":
+	case "16:9":
 		return config.ImageSize16x9
-	case "9:16", "720x1280":
+	case "9:16":
 		return config.ImageSize9x16
-	case "2:3", "832x1248":
+	case "2:3":
 		return config.ImageSize2x3
-	case "3:2", "1248x832":
+	case "3:2":
 		return config.ImageSize3x2
-	case "21:9", "1512x648":
+	case "21:9":
 		return config.ImageSize21x9
 	default:
 		// 默认使用1:1比例

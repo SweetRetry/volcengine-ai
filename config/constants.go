@@ -30,18 +30,6 @@ const (
 	DefaultImageSize = ImageSize1x1
 )
 
-// 即梦AI推荐尺寸常量 - 官方建议的最佳效果尺寸
-// 宽、高与512差距过大，则出图效果不佳、延迟过长概率显著增加
-const (
-	JimengImageSize1x1  = "512x512" // 1:1 比例
-	JimengImageSize4x3  = "512x384" // 4:3 比例
-	JimengImageSize3x4  = "384x512" // 3:4 比例
-	JimengImageSize3x2  = "512x341" // 3:2 比例
-	JimengImageSize2x3  = "341x512" // 2:3 比例
-	JimengImageSize16x9 = "512x288" // 16:9 比例
-	JimengImageSize9x16 = "288x512" // 9:16 比例
-)
-
 // 即梦AI视频尺寸比例常量
 const (
 	VideoAspectRatio16x9    = "16:9" // 1280×720 (默认)
