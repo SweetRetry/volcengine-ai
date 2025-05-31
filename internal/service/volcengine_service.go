@@ -373,14 +373,14 @@ func (s *VolcengineService) GenerateI2VByJimeng(ctx context.Context, taskID stri
 	// 获取aspect_ratio，如果没有提供则通过图片检测
 	aspectRatio, _ := input["aspect_ratio"].(string)
 	if aspectRatio == "" {
-		// 检测第一张图片的尺寸比例
+		// 检测第一张图片的尺寸比例（图生视频只使用第一张图片）
 		detectedRatio, err := s.detectImageAspectRatio(ctx, imageURLs[0])
 		if err != nil {
-			s.logger.Warnf("检测图片尺寸失败，使用默认比例16:9: %v", err)
+			s.logger.Warnf("检测第一张图片尺寸失败，使用默认比例16:9: %v", err)
 			aspectRatio = "16:9"
 		} else {
 			aspectRatio = detectedRatio
-			s.logger.Infof("检测到图片尺寸比例: %s", aspectRatio)
+			s.logger.Infof("检测到第一张图片尺寸比例: %s", aspectRatio)
 		}
 	}
 
