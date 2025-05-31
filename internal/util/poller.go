@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"volcengine-go-server/pkg/logger"
-
 	"github.com/sirupsen/logrus"
+
+	"volcengine-go-server/pkg/logger"
 )
 
 // TaskResultChecker 任务结果检查器接口
@@ -52,7 +52,6 @@ func (c *PollConfig) WithLogger(logger *logrus.Logger) *PollConfig {
 }
 
 // PollTaskResult 通用任务轮询方法
-// 这个方法会阻塞当前goroutine直到任务完成或超时，但不会影响其他goroutine的执行
 func PollTaskResult(ctx context.Context, taskID string, checker TaskResultChecker, config *PollConfig) (interface{}, error) {
 	if config == nil {
 		config = DefaultPollConfig("unknown")
@@ -122,39 +121,4 @@ func PollTaskResultAsync(ctx context.Context, taskID string, checker TaskResultC
 type PollResult struct {
 	Result interface{}
 	Error  error
-}
-
-// PollerConfig 轮询器配置
-type PollerConfig struct {
-	Interval time.Duration
-	Timeout  time.Duration
-	Logger   *logrus.Logger
-}
-
-// DefaultPollerConfig 默认轮询器配置
-func DefaultPollerConfig() *PollerConfig {
-	return &PollerConfig{
-		Interval: 5 * time.Second,
-		Timeout:  30 * time.Second,
-		Logger:   logger.GetLogger(),
-	}
-}
-
-// NewPollerConfig 创建轮询器配置
-func NewPollerConfig(interval, timeout time.Duration) *PollerConfig {
-	return &PollerConfig{
-		Interval: interval,
-		Timeout:  timeout,
-		Logger:   logger.GetLogger(),
-	}
-}
-
-// SetLogger 设置日志器
-func (config *PollerConfig) SetLogger(log *logrus.Logger) *PollerConfig {
-	if log == nil {
-		config.Logger = logger.GetLogger()
-	} else {
-		config.Logger = log
-	}
-	return config
 }
