@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/disintegration/imaging"
 	"github.com/sirupsen/logrus"
 	"github.com/volcengine/volc-sdk-golang/service/visual"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
@@ -997,20 +997,18 @@ func (s *VolcengineService) detectImageAspectRatio(ctx context.Context, imageURL
 	return aspectRatio, nil
 }
 
-// getImageDimensions 获取图片的宽高尺寸
+// getImageDimensions 获取图片的宽高尺寸（使用imaging库）
 func (s *VolcengineService) getImageDimensions(ctx context.Context, imageURL string) (int, int, error) {
-	// 创建HTTP请求，只获取头部信息以节省带宽
+	// 创建HTTP请求
 	req, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
 	if err != nil {
 		return 0, 0, fmt.Errorf("创建HTTP请求失败: %v", err)
 	}
 
-	// 设置Range头部，只获取前几KB的数据用于解析图片头部
-	req.Header.Set("Range", "bytes=0-8192")
 	req.Header.Set("User-Agent", "VolcengineAI/1.0")
 
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 15 * time.Second,
 	}
 
 	resp, err := client.Do(req)
@@ -1019,85 +1017,22 @@ func (s *VolcengineService) getImageDimensions(ctx context.Context, imageURL str
 	}
 	defer resp.Body.Close()
 
-	// 读取响应数据
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, 0, fmt.Errorf("读取响应数据失败: %v", err)
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return 0, 0, fmt.Errorf("HTTP请求失败，状态码: %d", resp.StatusCode)
 	}
 
-	// 解析图片尺寸
-	width, height, err := s.parseImageDimensions(data)
+	// 使用imaging库解码图片并获取尺寸
+	img, err := imaging.Decode(resp.Body)
 	if err != nil {
-		return 0, 0, fmt.Errorf("解析图片尺寸失败: %v", err)
+		return 0, 0, fmt.Errorf("解码图片失败: %v", err)
 	}
+
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
 
 	return width, height, nil
-}
-
-// parseImageDimensions 从图片数据中解析尺寸信息
-func (s *VolcengineService) parseImageDimensions(data []byte) (int, int, error) {
-	// 检测图片格式并解析尺寸
-	if len(data) < 10 {
-		return 0, 0, fmt.Errorf("图片数据太短")
-	}
-
-	// JPEG格式检测
-	if len(data) >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
-		return s.parseJPEGDimensions(data)
-	}
-
-	// PNG格式检测
-	if len(data) >= 8 && string(data[1:4]) == "PNG" {
-		return s.parsePNGDimensions(data)
-	}
-
-	// WebP格式检测
-	if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
-		return s.parseWebPDimensions(data)
-	}
-
-	return 0, 0, fmt.Errorf("不支持的图片格式")
-}
-
-// parseJPEGDimensions 解析JPEG图片尺寸
-func (s *VolcengineService) parseJPEGDimensions(data []byte) (int, int, error) {
-	// 简化的JPEG解析，查找SOF0标记
-	for i := 0; i < len(data)-9; i++ {
-		if data[i] == 0xFF && data[i+1] == 0xC0 {
-			// SOF0标记找到，尺寸信息在偏移5-8字节
-			if i+9 < len(data) {
-				height := int(data[i+5])<<8 | int(data[i+6])
-				width := int(data[i+7])<<8 | int(data[i+8])
-				return width, height, nil
-			}
-		}
-	}
-	return 0, 0, fmt.Errorf("无法解析JPEG尺寸")
-}
-
-// parsePNGDimensions 解析PNG图片尺寸
-func (s *VolcengineService) parsePNGDimensions(data []byte) (int, int, error) {
-	// PNG的IHDR块包含尺寸信息，位于文件开头的固定位置
-	if len(data) >= 24 {
-		width := int(data[16])<<24 | int(data[17])<<16 | int(data[18])<<8 | int(data[19])
-		height := int(data[20])<<24 | int(data[21])<<16 | int(data[22])<<8 | int(data[23])
-		return width, height, nil
-	}
-	return 0, 0, fmt.Errorf("无法解析PNG尺寸")
-}
-
-// parseWebPDimensions 解析WebP图片尺寸
-func (s *VolcengineService) parseWebPDimensions(data []byte) (int, int, error) {
-	// WebP格式比较复杂，这里提供一个简化版本
-	if len(data) >= 30 && string(data[12:16]) == "VP8 " {
-		// VP8格式
-		if len(data) >= 30 {
-			width := int(data[26]) | int(data[27])<<8
-			height := int(data[28]) | int(data[29])<<8
-			return width & 0x3FFF, height & 0x3FFF, nil
-		}
-	}
-	return 0, 0, fmt.Errorf("无法解析WebP尺寸")
 }
 
 // calculateBestAspectRatio 计算最接近的标准宽高比
