@@ -10,6 +10,7 @@ const (
 	// 火山引擎即梦AI模型
 	VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L"
 	VolcengineJimengVideoModel = "jimeng_vgfm_t2v_l20" // 即梦AI文生视频模型
+	VolcengineJimengI2VModel   = "jimeng_vgfm_i2v_l20" // 即梦AI图生视频模型
 
 	// OpenAI模型
 	OpenAIImageModel = "dall-e-3"

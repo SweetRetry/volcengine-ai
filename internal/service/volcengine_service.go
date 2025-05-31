@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"math"
+	"net/http"
 	"os"
 	"time"
 
@@ -67,6 +70,14 @@ type JimengVideoRequest struct {
 	Prompt      string `json:"prompt"`                 // 必填：生成视频的提示词，支持中英文，150字符以内
 	Seed        int    `json:"seed,omitempty"`         // 可选：随机种子，默认-1（随机）
 	AspectRatio string `json:"aspect_ratio,omitempty"` // 可选：生成视频的尺寸，默认16:9
+}
+
+// 即梦AI图生视频请求结构
+type JimengI2VRequest struct {
+	ImageURLs   []string `json:"image_urls"`             // 必填：图片链接数组
+	Prompt      string   `json:"prompt,omitempty"`       // 可选：生成视频的提示词，支持中英文，150字符以内
+	Seed        int      `json:"seed,omitempty"`         // 可选：随机种子，默认-1（随机）
+	AspectRatio string   `json:"aspect_ratio,omitempty"` // 必填：生成视频的尺寸比例
 }
 
 // 即梦AI视频生成结果
@@ -309,6 +320,120 @@ func (s *VolcengineService) GenerateVideoByJimeng(ctx context.Context, taskID st
 	}
 
 	s.logger.Infof("即梦AI视频任务状态已更新为完成: %s", taskID)
+	return nil
+}
+
+// GenerateI2VByJimeng 即梦AI图生视频具体实现
+func (s *VolcengineService) GenerateI2VByJimeng(ctx context.Context, taskID string, input map[string]interface{}) error {
+	s.logger.Infof("即梦AI图生视频开始: taskID=%s", taskID)
+
+	// 从input参数中获取图片URLs
+	imageURLsInterface, ok := input["image_urls"]
+	if !ok {
+		err := fmt.Errorf("缺少image_urls参数")
+		s.logger.Errorf("获取任务输入失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	// 转换图片URLs
+	var imageURLs []string
+	switch urls := imageURLsInterface.(type) {
+	case []string:
+		imageURLs = urls
+	case []interface{}:
+		for _, url := range urls {
+			if urlStr, ok := url.(string); ok {
+				imageURLs = append(imageURLs, urlStr)
+			}
+		}
+	default:
+		err := fmt.Errorf("image_urls参数格式错误")
+		s.logger.Errorf("获取任务输入失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	if len(imageURLs) == 0 {
+		err := fmt.Errorf("image_urls不能为空")
+		s.logger.Errorf("获取任务输入失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	// 获取prompt（可选）
+	prompt, _ := input["prompt"].(string)
+	if prompt != "" && len(prompt) > 150 {
+		err := fmt.Errorf("prompt长度超过150字符限制，当前长度: %d", len(prompt))
+		s.logger.Errorf("prompt长度检查失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	// 获取aspect_ratio，如果没有提供则通过图片检测
+	aspectRatio, _ := input["aspect_ratio"].(string)
+	if aspectRatio == "" {
+		// 检测第一张图片的尺寸比例
+		detectedRatio, err := s.detectImageAspectRatio(ctx, imageURLs[0])
+		if err != nil {
+			s.logger.Warnf("检测图片尺寸失败，使用默认比例16:9: %v", err)
+			aspectRatio = "16:9"
+		} else {
+			aspectRatio = detectedRatio
+			s.logger.Infof("检测到图片尺寸比例: %s", aspectRatio)
+		}
+	}
+
+	// 验证aspect_ratio是否在支持的范围内
+	if !s.isValidAspectRatio(aspectRatio) {
+		err := fmt.Errorf("不支持的aspect_ratio: %s，支持的比例: 16:9, 4:3, 1:1, 3:4, 9:16, 21:9, 9:21", aspectRatio)
+		s.logger.Errorf("aspect_ratio验证失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	seed := -1 // 默认随机种子
+	if seedValue, exists := input["seed"]; exists {
+		if seedInt, ok := seedValue.(int); ok {
+			seed = seedInt
+		}
+	}
+
+	// 构建即梦AI图生视频请求参数
+	request := &JimengI2VRequest{
+		ImageURLs:   imageURLs,
+		Prompt:      prompt,
+		Seed:        seed,
+		AspectRatio: aspectRatio,
+	}
+
+	// 提交图生视频任务
+	externalTaskID, err := s.submitJimengI2VTask(ctx, request)
+	if err != nil {
+		s.logger.Errorf("提交即梦AI图生视频任务失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	s.logger.Infof("即梦AI图生视频任务已提交，外部任务ID: %s", externalTaskID)
+
+	// 轮询任务结果（复用文生视频的轮询逻辑）
+	result, err := s.pollJimengVideoResult(ctx, externalTaskID)
+	if err != nil {
+		s.logger.Errorf("轮询即梦AI图生视频任务结果失败: %v", err)
+		s.taskService.UpdateTaskError(ctx, taskID, err.Error())
+		return err
+	}
+
+	s.logger.Infof("即梦AI图生视频生成成功: %s, 视频URL: %s", externalTaskID, result.VideoURL)
+
+	// 更新数据库中的任务状态
+	if err := s.taskService.UpdateTaskResult(ctx, taskID, result.VideoURL); err != nil {
+		s.logger.Errorf("更新任务状态失败: %v", err)
+		return err
+	}
+
+	s.logger.Infof("即梦AI图生视频任务状态已更新为完成: %s", taskID)
 	return nil
 }
 
@@ -775,4 +900,248 @@ func (s *VolcengineService) parseJimengVideoResultResponse(resp map[string]inter
 	}
 
 	return result, nil
+}
+
+// submitJimengI2VTask 提交即梦AI图生视频任务
+func (s *VolcengineService) submitJimengI2VTask(ctx context.Context, request *JimengI2VRequest) (string, error) {
+	s.logger.Infof("开始调用即梦AI图生视频API: image_count=%d", len(request.ImageURLs))
+
+	// 构建即梦AI图生视频任务参数
+	taskParams := map[string]interface{}{
+		"req_key":      "jimeng_vgfm_i2v_l20", // 即梦AI图生视频服务标识
+		"image_urls":   request.ImageURLs,
+		"aspect_ratio": request.AspectRatio,
+	}
+
+	// 如果有prompt，添加到参数中
+	if request.Prompt != "" {
+		taskParams["prompt"] = request.Prompt
+	}
+
+	// 如果指定了种子，添加到参数中
+	if request.Seed != -1 {
+		taskParams["seed"] = request.Seed
+	}
+
+	// 记录详细的API调用信息
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "cvSync2AsyncSubmitTask",
+		"req_key":      taskParams["req_key"],
+		"image_count":  len(request.ImageURLs),
+		"prompt":       taskParams["prompt"],
+		"aspect_ratio": taskParams["aspect_ratio"],
+		"seed":         taskParams["seed"],
+	}).Info("即梦AI图生视频API调用开始")
+
+	// 调用cvSync2AsyncSubmitTask提交任务
+	startTime := time.Now()
+	resp, status, err := s.visualClient.CVSync2AsyncSubmitTask(taskParams)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		s.logger.WithFields(logrus.Fields{
+			"api_endpoint": "cvSync2AsyncSubmitTask",
+			"duration_ms":  duration.Milliseconds(),
+			"status_code":  status,
+			"error":        err.Error(),
+		}).Error("即梦AI图生视频API调用失败")
+		return "", fmt.Errorf("提交即梦AI图生视频任务失败: %v", err)
+	}
+
+	// 记录成功的API调用
+	s.logger.WithFields(logrus.Fields{
+		"api_endpoint": "cvSync2AsyncSubmitTask",
+		"duration_ms":  duration.Milliseconds(),
+		"status_code":  status,
+		"response":     resp,
+	}).Info("即梦AI图生视频API调用成功")
+
+	// 检查响应是否包含task_id（异步任务）
+	if taskID, ok := resp["task_id"].(string); ok && taskID != "" {
+		s.logger.Infof("即梦AI图生视频任务提交成功，获得task_id: %s", taskID)
+		return taskID, nil
+	}
+
+	// 如果没有task_id，检查是否有其他标识符
+	if data, exists := resp["data"]; exists {
+		if dataMap, ok := data.(map[string]interface{}); ok {
+			// 检查是否有task_id在data中
+			if taskID, exists := dataMap["task_id"]; exists {
+				if taskIDStr, ok := taskID.(string); ok && taskIDStr != "" {
+					s.logger.Infof("即梦AI图生视频任务提交成功，从data中获得task_id: %s", taskIDStr)
+					return taskIDStr, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("响应中未找到有效的task_id")
+}
+
+// detectImageAspectRatio 检测图片的宽高比
+func (s *VolcengineService) detectImageAspectRatio(ctx context.Context, imageURL string) (string, error) {
+	s.logger.Infof("检测图片尺寸: %s", imageURL)
+
+	// 获取图片尺寸
+	width, height, err := s.getImageDimensions(ctx, imageURL)
+	if err != nil {
+		return "", fmt.Errorf("获取图片尺寸失败: %v", err)
+	}
+
+	s.logger.Infof("图片尺寸: %dx%d", width, height)
+
+	// 计算宽高比并匹配到最接近的标准比例
+	aspectRatio := s.calculateBestAspectRatio(width, height)
+	s.logger.Infof("匹配的标准比例: %s", aspectRatio)
+
+	return aspectRatio, nil
+}
+
+// getImageDimensions 获取图片的宽高尺寸
+func (s *VolcengineService) getImageDimensions(ctx context.Context, imageURL string) (int, int, error) {
+	// 创建HTTP请求，只获取头部信息以节省带宽
+	req, err := http.NewRequestWithContext(ctx, "GET", imageURL, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("创建HTTP请求失败: %v", err)
+	}
+
+	// 设置Range头部，只获取前几KB的数据用于解析图片头部
+	req.Header.Set("Range", "bytes=0-8192")
+	req.Header.Set("User-Agent", "VolcengineAI/1.0")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, 0, fmt.Errorf("HTTP请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应数据
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, 0, fmt.Errorf("读取响应数据失败: %v", err)
+	}
+
+	// 解析图片尺寸
+	width, height, err := s.parseImageDimensions(data)
+	if err != nil {
+		return 0, 0, fmt.Errorf("解析图片尺寸失败: %v", err)
+	}
+
+	return width, height, nil
+}
+
+// parseImageDimensions 从图片数据中解析尺寸信息
+func (s *VolcengineService) parseImageDimensions(data []byte) (int, int, error) {
+	// 检测图片格式并解析尺寸
+	if len(data) < 10 {
+		return 0, 0, fmt.Errorf("图片数据太短")
+	}
+
+	// JPEG格式检测
+	if len(data) >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
+		return s.parseJPEGDimensions(data)
+	}
+
+	// PNG格式检测
+	if len(data) >= 8 && string(data[1:4]) == "PNG" {
+		return s.parsePNGDimensions(data)
+	}
+
+	// WebP格式检测
+	if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
+		return s.parseWebPDimensions(data)
+	}
+
+	return 0, 0, fmt.Errorf("不支持的图片格式")
+}
+
+// parseJPEGDimensions 解析JPEG图片尺寸
+func (s *VolcengineService) parseJPEGDimensions(data []byte) (int, int, error) {
+	// 简化的JPEG解析，查找SOF0标记
+	for i := 0; i < len(data)-9; i++ {
+		if data[i] == 0xFF && data[i+1] == 0xC0 {
+			// SOF0标记找到，尺寸信息在偏移5-8字节
+			if i+9 < len(data) {
+				height := int(data[i+5])<<8 | int(data[i+6])
+				width := int(data[i+7])<<8 | int(data[i+8])
+				return width, height, nil
+			}
+		}
+	}
+	return 0, 0, fmt.Errorf("无法解析JPEG尺寸")
+}
+
+// parsePNGDimensions 解析PNG图片尺寸
+func (s *VolcengineService) parsePNGDimensions(data []byte) (int, int, error) {
+	// PNG的IHDR块包含尺寸信息，位于文件开头的固定位置
+	if len(data) >= 24 {
+		width := int(data[16])<<24 | int(data[17])<<16 | int(data[18])<<8 | int(data[19])
+		height := int(data[20])<<24 | int(data[21])<<16 | int(data[22])<<8 | int(data[23])
+		return width, height, nil
+	}
+	return 0, 0, fmt.Errorf("无法解析PNG尺寸")
+}
+
+// parseWebPDimensions 解析WebP图片尺寸
+func (s *VolcengineService) parseWebPDimensions(data []byte) (int, int, error) {
+	// WebP格式比较复杂，这里提供一个简化版本
+	if len(data) >= 30 && string(data[12:16]) == "VP8 " {
+		// VP8格式
+		if len(data) >= 30 {
+			width := int(data[26]) | int(data[27])<<8
+			height := int(data[28]) | int(data[29])<<8
+			return width & 0x3FFF, height & 0x3FFF, nil
+		}
+	}
+	return 0, 0, fmt.Errorf("无法解析WebP尺寸")
+}
+
+// calculateBestAspectRatio 计算最接近的标准宽高比
+func (s *VolcengineService) calculateBestAspectRatio(width, height int) string {
+	if width == 0 || height == 0 {
+		return "16:9" // 默认比例
+	}
+
+	// 计算实际比例
+	ratio := float64(width) / float64(height)
+
+	// 定义标准比例及其数值
+	standardRatios := map[string]float64{
+		"1:1":  1.0,
+		"4:3":  4.0 / 3.0,
+		"3:4":  3.0 / 4.0,
+		"16:9": 16.0 / 9.0,
+		"9:16": 9.0 / 16.0,
+		"21:9": 21.0 / 9.0,
+		"9:21": 9.0 / 21.0,
+	}
+
+	// 找到最接近的比例
+	bestRatio := "16:9"
+	minDiff := math.Abs(ratio - standardRatios["16:9"])
+
+	for ratioName, ratioValue := range standardRatios {
+		diff := math.Abs(ratio - ratioValue)
+		if diff < minDiff {
+			minDiff = diff
+			bestRatio = ratioName
+		}
+	}
+
+	return bestRatio
+}
+
+// isValidAspectRatio 验证aspect_ratio是否在支持的范围内
+func (s *VolcengineService) isValidAspectRatio(aspectRatio string) bool {
+	validRatios := []string{"16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "9:21"}
+	for _, ratio := range validRatios {
+		if aspectRatio == ratio {
+			return true
+		}
+	}
+	return false
 }

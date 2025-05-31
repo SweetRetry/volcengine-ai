@@ -74,6 +74,8 @@ func (p *VolcengineProvider) DispatchVideoTask(ctx context.Context, taskID strin
 	switch model {
 	case config.VolcengineJimengVideoModel:
 		return p.volcengineService.GenerateVideoByJimeng(ctx, taskID, input)
+	case config.VolcengineJimengI2VModel:
+		return p.volcengineService.GenerateI2VByJimeng(ctx, taskID, input)
 	default:
 		return fmt.Errorf("不支持的视频生成模型: %s", model)
 	}

@@ -14,13 +14,16 @@ import (
 
 // 通用AI任务请求结构
 type AITaskRequest struct {
-	Prompt   string `json:"prompt" binding:"required"`
+	Prompt   string `json:"prompt"`                   // 改为可选，图生视频时可以为空
 	Model    string `json:"model" binding:"required"` // 设为必填字段
 	UserID   string `json:"user_id" binding:"required"`
 	Provider string `json:"provider" binding:"required"` // 设为必填字段
 
 	// 图像和视频生成共用字段
 	AspectRatio string `json:"aspect_ratio,omitempty"` // 宽高比例
+
+	// 图生视频特有字段
+	ImageURLs []string `json:"image_urls,omitempty"` // 图片链接数组，用于图生视频
 
 	// 文本生成特有字段
 	MaxTokens   int     `json:"max_tokens,omitempty"`
@@ -112,6 +115,15 @@ func (h *AIHandler) createTask(c *gin.Context, taskType AITaskType) {
 
 // 处理图像任务创建的具体实现
 func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, provider, model string) {
+	// 图像生成必须有prompt
+	if req.Prompt == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "图像生成任务缺少prompt参数",
+			"message": "请提供图像生成的描述文本",
+		})
+		return
+	}
+
 	// 创建图像任务输入
 	input := &models.TaskInput{
 		Prompt:      req.Prompt,
@@ -184,6 +196,30 @@ func (h *AIHandler) handleTextTaskCreation(c *gin.Context, req *AITaskRequest, p
 
 // 处理视频任务创建的具体实现
 func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, provider, model string) {
+	// 根据模型类型判断是文生视频还是图生视频
+	isI2V := model == config.VolcengineJimengI2VModel
+
+	// 验证输入参数
+	if isI2V {
+		// 图生视频：必须有image_urls，prompt可选
+		if len(req.ImageURLs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "图生视频任务缺少image_urls参数",
+				"message": "请提供至少一个图片链接",
+			})
+			return
+		}
+	} else {
+		// 文生视频：必须有prompt
+		if req.Prompt == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "文生视频任务缺少prompt参数",
+				"message": "请提供视频生成的描述文本",
+			})
+			return
+		}
+	}
+
 	// 创建视频任务输入
 	input := &models.TaskInput{
 		Prompt:      req.Prompt,
@@ -219,6 +255,11 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 		},
 	}
 
+	// 如果是图生视频，添加image_urls到输入中
+	if isI2V {
+		payload.Input["image_urls"] = req.ImageURLs
+	}
+
 	// 将任务放入Redis队列
 	if err := h.queueService.EnqueueTask(c.Request.Context(), core.TypeVideoGeneration, payload); err != nil {
 		// 如果入队失败，删除已创建的任务记录
@@ -230,16 +271,27 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 		return
 	}
 
+	// 构建响应数据
+	responseData := gin.H{
+		"task_id":      task.ID,
+		"status":       config.TaskStatusPending,
+		"provider":     provider,
+		"model":        model,
+		"seed":         task.Seed,
+		"aspect_ratio": task.AspectRatio,
+	}
+
+	// 根据任务类型添加特定字段
+	if isI2V {
+		responseData["image_count"] = len(req.ImageURLs)
+		responseData["task_type"] = "image_to_video"
+	} else {
+		responseData["task_type"] = "text_to_video"
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"data": gin.H{
-			"task_id":      task.ID,
-			"status":       config.TaskStatusPending,
-			"provider":     provider,
-			"model":        model,
-			"seed":         task.Seed,
-			"aspect_ratio": task.AspectRatio,
-		},
+		"data":    responseData,
 		"message": "视频生成任务创建成功",
 	})
 }
