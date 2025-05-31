@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +9,7 @@ import (
 	"volcengine-go-server/internal/core"
 	"volcengine-go-server/internal/models"
 	"volcengine-go-server/internal/service"
+	"volcengine-go-server/internal/util"
 )
 
 // 通用AI任务请求结构
@@ -73,26 +73,20 @@ func (h *AIHandler) CreateVideoTask(c *gin.Context) {
 // 创建AI任务的通用方法
 func (h *AIHandler) createTask(c *gin.Context, taskType AITaskType) {
 	var req AITaskRequest
-	if errors := ValidateRequest(c, &req); len(errors) > 0 {
-		ResponseValidationError(c, errors)
+	if errors := util.ValidateRequest(c, &req); len(errors) > 0 {
+		util.ValidationErrorResponse(c, errors)
 		return
 	}
 
 	// 验证model字段是否为空
 	if req.Model == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "model字段不能为空",
-			"message": "请指定要使用的AI模型",
-		})
+		util.BadRequestResponse(c, "model字段不能为空", "请指定要使用的AI模型")
 		return
 	}
 
 	// 验证provider字段是否为空
 	if req.Provider == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "provider字段不能为空",
-			"message": "请指定要使用的AI服务提供商",
-		})
+		util.BadRequestResponse(c, "provider字段不能为空", "请指定要使用的AI服务提供商")
 		return
 	}
 
@@ -107,9 +101,7 @@ func (h *AIHandler) createTask(c *gin.Context, taskType AITaskType) {
 	case TaskTypeVideo:
 		h.handleVideoTaskCreation(c, &req, provider, model)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "不支持的任务类型",
-		})
+		util.BadRequestResponse(c, "不支持的任务类型", "")
 	}
 }
 
@@ -117,10 +109,7 @@ func (h *AIHandler) createTask(c *gin.Context, taskType AITaskType) {
 func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, provider, model string) {
 	// 图像生成必须有prompt
 	if req.Prompt == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "图像生成任务缺少prompt参数",
-			"message": "请提供图像生成的描述文本",
-		})
+		util.BadRequestResponse(c, "图像生成任务缺少prompt参数", "请提供图像生成的描述文本")
 		return
 	}
 
@@ -137,10 +126,7 @@ func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, 
 	// 在任务系统中创建记录
 	task, err := h.taskService.CreateTask(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建图像任务记录失败",
-			"message": err.Error(),
-		})
+		util.InternalServerErrorResponse(c, "创建图像任务记录失败", err.Error())
 		return
 	}
 
@@ -161,36 +147,25 @@ func (h *AIHandler) handleImageTaskCreation(c *gin.Context, req *AITaskRequest, 
 	if err := h.queueService.EnqueueTask(c.Request.Context(), core.TypeImageGeneration, payload); err != nil {
 		// 如果入队失败，删除已创建的任务记录
 		h.taskService.DeleteTask(c.Request.Context(), task.ID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "任务入队失败",
-			"message": err.Error(),
-		})
+		util.InternalServerErrorResponse(c, "任务入队失败", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data": gin.H{
-			"task_id":  task.ID,
-			"status":   config.TaskStatusPending,
-			"provider": provider,
-			"model":    model,
-		},
-		"message": "图像生成任务创建成功",
-	})
+	util.CreatedResponse(c, gin.H{
+		"task_id":  task.ID,
+		"status":   config.TaskStatusPending,
+		"provider": provider,
+		"model":    model,
+	}, "图像生成任务创建成功")
 }
 
 // 处理文本任务创建的具体实现
 func (h *AIHandler) handleTextTaskCreation(c *gin.Context, req *AITaskRequest, provider, model string) {
 	// TODO: 实现文本任务创建逻辑
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"error":   "文本生成功能暂未实现",
-		"message": "该功能正在开发中，敬请期待",
-		"data": gin.H{
-			"provider": provider,
-			"model":    model,
-			"prompt":   req.Prompt,
-		},
+	util.NotImplementedResponse(c, "文本生成功能暂未实现", "该功能正在开发中，敬请期待", gin.H{
+		"provider": provider,
+		"model":    model,
+		"prompt":   req.Prompt,
 	})
 }
 
@@ -203,19 +178,13 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 	if isI2V {
 		// 图生视频：必须有image_urls，prompt可选
 		if len(req.ImageURLs) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "图生视频任务缺少image_urls参数",
-				"message": "请提供至少一个图片链接",
-			})
+			util.BadRequestResponse(c, "图生视频任务缺少image_urls参数", "请提供至少一个图片链接")
 			return
 		}
 	} else {
 		// 文生视频：必须有prompt
 		if req.Prompt == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":   "文生视频任务缺少prompt参数",
-				"message": "请提供视频生成的描述文本",
-			})
+			util.BadRequestResponse(c, "文生视频任务缺少prompt参数", "请提供视频生成的描述文本")
 			return
 		}
 	}
@@ -234,10 +203,7 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 	// 在任务系统中创建记录
 	task, err := h.taskService.CreateTask(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "创建视频任务记录失败",
-			"message": err.Error(),
-		})
+		util.InternalServerErrorResponse(c, "创建视频任务记录失败", err.Error())
 		return
 	}
 
@@ -264,10 +230,7 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 	if err := h.queueService.EnqueueTask(c.Request.Context(), core.TypeVideoGeneration, payload); err != nil {
 		// 如果入队失败，删除已创建的任务记录
 		h.taskService.DeleteTask(c.Request.Context(), task.ID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "任务入队失败",
-			"message": err.Error(),
-		})
+		util.InternalServerErrorResponse(c, "任务入队失败", err.Error())
 		return
 	}
 
@@ -289,29 +252,20 @@ func (h *AIHandler) handleVideoTaskCreation(c *gin.Context, req *AITaskRequest, 
 		responseData["task_type"] = "text_to_video"
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"data":    responseData,
-		"message": "视频生成任务创建成功",
-	})
+	util.CreatedResponse(c, responseData, "视频生成任务创建成功")
 }
 
 // 统一任务结果查询
 func (h *AIHandler) GetTaskResult(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "任务ID不能为空",
-		})
+		util.BadRequestResponse(c, "任务ID不能为空", "")
 		return
 	}
 
 	task, err := h.taskService.GetTask(c.Request.Context(), taskID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "任务不存在",
-			"message": err.Error(),
-		})
+		util.NotFoundResponse(c, "任务不存在", err.Error())
 		return
 	}
 
@@ -322,33 +276,23 @@ func (h *AIHandler) GetTaskResult(c *gin.Context) {
 func (h *AIHandler) DeleteTask(c *gin.Context) {
 	taskID := c.Param("task_id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "任务ID不能为空",
-		})
+		util.BadRequestResponse(c, "任务ID不能为空", "")
 		return
 	}
 
 	if err := h.taskService.DeleteTask(c.Request.Context(), taskID); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":   "任务不存在",
-			"message": err.Error(),
-		})
+		util.NotFoundResponse(c, "任务不存在", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "任务删除成功",
-	})
+	util.SuccessResponse(c, nil, "任务删除成功")
 }
 
 // 统一任务列表查询
 func (h *AIHandler) GetUserTasks(c *gin.Context) {
 	userID := c.Query("user_id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "用户ID不能为空",
-		})
+		util.BadRequestResponse(c, "用户ID不能为空", "")
 		return
 	}
 
@@ -360,10 +304,7 @@ func (h *AIHandler) GetUserTasks(c *gin.Context) {
 
 	tasks, err := h.taskService.GetUserTasks(c.Request.Context(), userID, taskType, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "获取任务列表失败",
-			"message": err.Error(),
-		})
+		util.InternalServerErrorResponse(c, "获取任务列表失败", err.Error())
 		return
 	}
 
@@ -381,10 +322,7 @@ func (h *AIHandler) GetUserTasks(c *gin.Context) {
 		responseData["type"] = "all"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    responseData,
-	})
+	util.SuccessResponse(c, responseData, "")
 }
 
 // 统一的任务结果响应
@@ -420,24 +358,12 @@ func (h *AIHandler) respondWithTaskResult(c *gin.Context, task *models.Task) {
 
 	switch task.Status {
 	case config.TaskStatusCompleted:
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data":    responseData,
-			"message": "任务完成",
-		})
+		util.SuccessResponse(c, responseData, "任务完成")
 	case config.TaskStatusFailed:
 		responseData["error"] = task.Error
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "任务执行失败",
-			"message": task.Error,
-			"data":    responseData,
-		})
+		util.InternalServerErrorResponse(c, "任务执行失败", task.Error)
 	default:
-		c.JSON(http.StatusAccepted, gin.H{
-			"success": true,
-			"data":    responseData,
-			"message": "任务处理中，请稍后查询",
-		})
+		util.AcceptedResponse(c, responseData, "任务处理中，请稍后查询")
 	}
 }
 

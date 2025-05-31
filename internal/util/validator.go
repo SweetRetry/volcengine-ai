@@ -1,4 +1,4 @@
-package handlers
+package util
 
 import (
 	"fmt"
@@ -65,13 +65,4 @@ func getValidationMessage(fe validator.FieldError) string {
 	default:
 		return fmt.Sprintf("%s 验证失败", field)
 	}
-}
-
-// ResponseValidationError 返回验证错误响应
-func ResponseValidationError(c *gin.Context, errors []ValidationError) {
-	c.JSON(400, gin.H{
-		"error":   "请求参数验证失败",
-		"message": "请检查以下字段",
-		"details": errors,
-	})
 }

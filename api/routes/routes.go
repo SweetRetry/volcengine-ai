@@ -1,11 +1,10 @@
 package routes
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 
 	"volcengine-go-server/api/handlers"
+	"volcengine-go-server/internal/util"
 )
 
 func SetupRoutes(
@@ -15,10 +14,9 @@ func SetupRoutes(
 ) {
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"message": "服务正常运行",
-		})
+		util.SuccessResponse(c, gin.H{
+			"status": "ok",
+		}, "服务正常运行")
 	})
 
 	// API版本分组
@@ -51,9 +49,6 @@ func SetupRoutes(
 
 	// 404处理
 	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "接口不存在",
-			"path":  c.Request.URL.Path,
-		})
+		util.NotFoundResponse(c, "接口不存在", "路径: "+c.Request.URL.Path)
 	})
 }

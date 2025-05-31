@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"net/http"
 	"sync"
 	"time"
+
+	"volcengine-go-server/internal/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -67,10 +68,7 @@ func RateLimiterMiddleware() gin.HandlerFunc {
 		clientIP := c.ClientIP()
 
 		if !limiter.Allow(clientIP) {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":   "请求过于频繁",
-				"message": "请稍后重试",
-			})
+			util.TooManyRequestsResponse(c, "请求过于频繁", "请稍后重试")
 			c.Abort()
 			return
 		}
