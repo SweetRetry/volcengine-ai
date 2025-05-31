@@ -12,9 +12,9 @@ import (
 
 	"volcengine-go-server/config"
 	"volcengine-go-server/internal/core"
-	"volcengine-go-server/internal/provider"
 	"volcengine-go-server/internal/repository"
 	"volcengine-go-server/internal/service"
+	"volcengine-go-server/internal/service/volcengine"
 	"volcengine-go-server/pkg/logger"
 )
 
@@ -62,7 +62,7 @@ func main() {
 
 	// 初始化服务层
 	taskService := service.NewTaskService(db)
-	volcengineService := service.NewVolcengineService(cfg.AI, taskService)
+	volcengineService := volcengine.NewVolcengineService(cfg.AI, taskService)
 
 	// 创建OpenAI服务（示例，如果需要的话）
 	// openaiService := service.NewOpenAIService("your-openai-api-key", taskService)
@@ -71,7 +71,7 @@ func main() {
 	serviceRegistry := core.NewServiceRegistry()
 
 	// 创建并注册火山引擎任务分发器
-	volcengineProvider := provider.NewVolcengineProvider(volcengineService, taskService)
+	volcengineProvider := volcengine.NewProvider(volcengineService, taskService)
 	serviceRegistry.RegisterDispatcher(volcengineProvider)
 
 	// 创建并注册OpenAI任务分发器（示例）

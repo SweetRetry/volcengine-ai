@@ -414,12 +414,12 @@ curl "http://localhost:8080/api/v1/ai/tasks?user_id=user123&type=image&limit=10&
 
 ```go
 // Provider层 - 任务分发
-type VolcengineProvider struct {
-    volcengineService *service.VolcengineService
-    taskService       *service.TaskService
+type Provider struct {
+    volcengineService *volcengine.VolcengineService
+    taskService       volcengine.TaskService
 }
 
-func (p *VolcengineProvider) DispatchImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
+func (p *Provider) DispatchImageTask(ctx context.Context, taskID string, model string, input map[string]interface{}) error {
     switch model {
     case "jimeng_high_aes_general_v21_L":
         return p.volcengineService.GenerateImageByJimeng(ctx, taskID, input)
@@ -435,7 +435,7 @@ func (p *VolcengineProvider) DispatchImageTask(ctx context.Context, taskID strin
 // Service层 - 具体实现
 type VolcengineService struct {
     config      *config.AIConfig
-    taskService *TaskService
+    taskService TaskService
 }
 
 func (s *VolcengineService) GenerateImageByJimeng(ctx context.Context, taskID string, input map[string]interface{}) error {
