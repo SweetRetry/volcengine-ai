@@ -1,0 +1,231 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Go 编码规范与最佳实践
+
+## 📝 代码风格规范
+
+### 命名约定
+- **包名**: 使用小写字母，简短且有意义 (如 `service`, `handler`, `util`)
+- **接口名**: 使用 `er` 后缀 (如 `TaskDispatcher`, `ServiceProvider`)
+- **结构体**: 使用 PascalCase (如 `TaskService`, `AIProvider`)
+- **函数/方法**: 使用 PascalCase 导出，camelCase 私有 (如 `CreateTask`, `validateInput`)
+- **常量**: 使用 UPPER_SNAKE_CASE (如 `MAX_RETRY_COUNT`, `DEFAULT_TIMEOUT`)
+- **变量**: 使用 camelCase (如 `taskID`, `userRequest`)
+
+### 文件组织
+- **一个文件一个主要类型**: 每个 `.go` 文件应该专注于一个主要的结构体或接口
+- **测试文件**: 使用 `_test.go` 后缀，与被测试文件放在同一包中
+- **接口定义**: 优先在使用方包中定义接口，而不是实现方
+
+## 🏗️ 架构模式
+
+### 分层架构原则
+```go
+// ✅ 正确的依赖方向
+Handler -> Service -> Repository -> Database
+Provider -> Service (通过接口)
+Core -> Provider (通过注册机制)
+```
+
+### 接口设计
+```go
+// ✅ 推荐：小而专注的接口
+type TaskCreator interface {
+    CreateTask(ctx context.Context, req CreateTaskRequest) (*Task, error)
+}
+
+type TaskQuerier interface {
+    GetTask(ctx context.Context, id string) (*Task, error)
+    ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, error)
+}
+
+// ❌ 避免：过大的接口
+type TaskManager interface {
+    CreateTask(ctx context.Context, req CreateTaskRequest) (*Task, error)
+    GetTask(ctx context.Context, id string) (*Task, error)
+    UpdateTask(ctx context.Context, id string, updates TaskUpdates) error
+    DeleteTask(ctx context.Context, id string) error
+    ListTasks(ctx context.Context, filter TaskFilter) ([]*Task, error)
+    ProcessTask(ctx context.Context, id string) error
+}
+```
+
+## 🔧 错误处理
+
+### 错误包装和传播
+```go
+// ✅ 使用 fmt.Errorf 包装错误
+func (s *TaskService) CreateTask(ctx context.Context, req CreateTaskRequest) (*Task, error) {
+    if err := s.validateRequest(req); err != nil {
+        return nil, fmt.Errorf("invalid request: %w", err)
+    }
+    
+    task, err := s.repo.Create(ctx, req)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create task: %w", err)
+    }
+    
+    return task, nil
+}
+```
+
+### 统一错误响应
+```go
+// 在 api/handlers 中使用统一的错误响应格式
+type ErrorResponse struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
+    Details string `json:"details,omitempty"`
+}
+```
+
+## 📊 日志记录
+
+### 结构化日志
+```go
+// ✅ 使用结构化字段
+logger.WithFields(logrus.Fields{
+    "task_id": taskID,
+    "user_id": userID,
+    "action":  "create_task",
+}).Info("任务创建成功")
+
+// ❌ 避免字符串拼接
+logger.Info("Task " + taskID + " created for user " + userID)
+```
+
+### 日志级别使用
+- **Error**: 系统错误，需要立即关注
+- **Warn**: 潜在问题，但不影响正常运行
+- **Info**: 重要的业务事件
+- **Debug**: 详细的调试信息
+
+## 🧪 测试规范
+
+### 测试文件结构
+```go
+func TestTaskService_CreateTask(t *testing.T) {
+    tests := []struct {
+        name    string
+        req     CreateTaskRequest
+        want    *Task
+        wantErr bool
+    }{
+        {
+            name: "valid request",
+            req:  CreateTaskRequest{/* ... */},
+            want: &Task{/* ... */},
+            wantErr: false,
+        },
+        {
+            name: "invalid request",
+            req:  CreateTaskRequest{/* ... */},
+            want: nil,
+            wantErr: true,
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // 测试逻辑
+        })
+    }
+}
+```
+
+### Mock 和依赖注入
+```go
+// 使用接口进行依赖注入，便于测试
+type TaskService struct {
+    repo   TaskRepository
+    logger *logrus.Logger
+}
+
+func NewTaskService(repo TaskRepository, logger *logrus.Logger) *TaskService {
+    return &TaskService{
+        repo:   repo,
+        logger: logger,
+    }
+}
+```
+
+## 🔒 安全最佳实践
+
+### 输入验证
+```go
+// 使用 validator 标签进行输入验证
+type CreateTaskRequest struct {
+    Title       string `json:"title" validate:"required,min=1,max=100"`
+    Description string `json:"description" validate:"max=500"`
+    ModelName   string `json:"model_name" validate:"required,oneof=doubao jimeng"`
+}
+```
+
+### 敏感信息处理
+```go
+// ✅ 不在日志中记录敏感信息
+logger.WithFields(logrus.Fields{
+    "user_id": userID,
+    "action":  "api_call",
+}).Info("API调用成功")
+
+// ❌ 避免记录API密钥等敏感信息
+logger.Info("API Key: " + apiKey) // 危险！
+```
+
+## 🚀 性能优化
+
+### Context 使用
+```go
+// ✅ 正确传递和使用 context
+func (s *TaskService) ProcessTask(ctx context.Context, taskID string) error {
+    // 设置超时
+    ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+    defer cancel()
+    
+    // 传递给下游调用
+    return s.aiProvider.GenerateImage(ctx, request)
+}
+```
+
+### 资源管理
+```go
+// ✅ 及时关闭资源
+func (r *TaskRepository) GetTask(ctx context.Context, id string) (*Task, error) {
+    cursor, err := r.collection.Find(ctx, bson.M{"_id": id})
+    if err != nil {
+        return nil, err
+    }
+    defer cursor.Close(ctx) // 重要：及时关闭游标
+    
+    // 处理结果...
+}
+```
+
+## 📦 依赖管理
+
+### go.mod 维护
+- 定期运行 `go mod tidy` 清理未使用的依赖
+- 使用具体版本而不是 `latest`
+- 重要依赖固定版本，避免意外升级
+
+### 导入顺序
+```go
+import (
+    // 标准库
+    "context"
+    "fmt"
+    "time"
+    
+    // 第三方库
+    "github.com/gin-gonic/gin"
+    "github.com/sirupsen/logrus"
+    
+    // 项目内部包
+    "volcengine-go-server/internal/models"
+    "volcengine-go-server/internal/service"
+)
+```

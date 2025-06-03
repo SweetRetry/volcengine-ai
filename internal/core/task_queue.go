@@ -153,7 +153,7 @@ func (r *TaskQueue) handleTextGeneration(ctx context.Context, task *asynq.Task) 
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		r.log.Errorf(errorMsg)
+		r.log.Error(errorMsg)
 		// 文本任务暂无数据库状态管理，返回SkipRetry错误让任务被正确归档
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
@@ -182,7 +182,7 @@ func (r *TaskQueue) handleImageGeneration(ctx context.Context, task *asynq.Task)
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		r.log.Errorf(errorMsg)
+		r.log.Error(errorMsg)
 		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}
@@ -210,7 +210,7 @@ func (r *TaskQueue) handleVideoGeneration(ctx context.Context, task *asynq.Task)
 	dispatcher, exists := r.serviceRegistry.GetDispatcher(payload.Provider)
 	if !exists {
 		errorMsg := fmt.Sprintf("未找到AI任务分发器: %s", payload.Provider)
-		r.log.Errorf(errorMsg)
+		r.log.Error(errorMsg)
 		r.taskService.UpdateTaskError(ctx, payload.TaskID, errorMsg)
 		return fmt.Errorf("未找到AI任务分发器: %s: %w", payload.Provider, asynq.SkipRetry)
 	}

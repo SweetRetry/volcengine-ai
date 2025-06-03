@@ -1,0 +1,78 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Volcengine Go Server - 项目结构指南
+
+## 🏗️ 项目概述
+
+这是一个基于火山方舟的企业级AI服务平台，采用现代化分层架构设计，支持多AI服务商、异步任务处理和高并发场景。
+
+## 📁 核心目录结构
+
+### 应用入口 (cmd/)
+- [cmd/server/main.go](mdc:cmd/server/main.go) - API服务器主入口
+- [cmd/worker/main.go](mdc:cmd/worker/main.go) - 队列工作器主入口
+
+### 核心业务逻辑 (internal/)
+- **core/** - 核心基础设施层
+  - 任务队列系统 (TaskQueue)
+  - AI任务分发器接口 (AITaskDispatcher)
+  - 服务注册器 (ServiceRegistry)
+- **provider/** - 任务分发层
+  - 根据模型参数智能路由到具体Service
+  - 支持火山引擎、OpenAI等多个提供商
+- **service/** - 业务实现层
+  - 真实的AI API调用逻辑
+  - 统一任务管理服务
+- **repository/** - 数据访问层
+  - MongoDB数据库操作接口
+- **models/** - 数据模型定义
+- **util/** - 工具函数和辅助方法
+
+### API层 (api/)
+- **handlers/** - HTTP请求处理器
+- **middleware/** - 中间件 (认证、日志、CORS等)
+- **routes/** - 路由定义
+
+### 共享包 (pkg/)
+- **logger/** - 智能日志管理系统
+
+### 配置文件
+- [go.mod](mdc:go.mod) - Go模块依赖管理
+- [Makefile](mdc:Makefile) - 构建和部署脚本
+- [Dockerfile](mdc:Dockerfile) - Docker容器化配置
+- [docker-compose.yml](mdc:docker-compose.yml) - 多容器编排
+- [env.example](mdc:env.example) - 环境变量模板
+
+## 🔄 架构分层说明
+
+### 1. Core Layer (核心基础设施层)
+负责任务队列、分发器接口和服务注册等基础功能
+
+### 2. Provider Layer (任务分发层)
+根据模型参数决定调用哪个Service方法，实现智能路由
+
+### 3. Service Layer (业务实现层)
+具体的AI API调用和业务逻辑实现
+
+### 4. Repository Layer (数据访问层)
+统一的数据库操作接口，支持MongoDB
+
+## 🚀 开发工作流
+
+1. **API开发**: 在 `api/handlers/` 中添加新的处理器
+2. **业务逻辑**: 在 `internal/service/` 中实现具体业务
+3. **数据访问**: 在 `internal/repository/` 中添加数据操作
+4. **模型定义**: 在 `internal/models/` 中定义数据结构
+5. **路由配置**: 在 `api/routes/` 中配置新路由
+
+## 🔧 关键技术栈
+
+- **框架**: Gin (轻量级Web框架)
+- **数据库**: MongoDB (文档数据库)
+- **缓存**: Redis (缓存和队列存储)
+- **队列**: Asynq (分布式任务队列)
+- **AI服务**: 火山方舟SDK、火山引擎Visual SDK
+- **日志**: Logrus (结构化日志)

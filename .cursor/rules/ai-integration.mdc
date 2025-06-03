@@ -1,0 +1,317 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# AI 服务集成指南
+
+## 🔥 火山方舟 AI 服务集成
+
+### 支持的AI模型
+- **豆包图像生成**: `doubao-seedream-3-0-t2i-250415` - 高质量图像生成
+- **即梦AI图像生成**: `jimeng_high_aes_general_v21_L` - 专业级艺术创作
+- **即梦AI视频生成**: `jimeng_vgfm_t2v_l20` - 文本到视频生成
+
+### Provider-Service 架构模式
+
+#### Provider层职责
+```go
+// Provider负责任务分发和路由
+type VolcengineProvider struct {
+    imageService ImageGenerationService
+    videoService VideoGenerationService
+    logger       *logrus.Logger
+}
+
+func (p *VolcengineProvider) DispatchTask(ctx context.Context, task *Task) error {
+    switch task.ModelName {
+    case "doubao-seedream-3-0-t2i-250415":
+        return p.imageService.GenerateDoubaoImage(ctx, task)
+    case "jimeng_high_aes_general_v21_L":
+        return p.imageService.GenerateJimengImage(ctx, task)
+    case "jimeng_vgfm_t2v_l20":
+        return p.videoService.GenerateJimengVideo(ctx, task)
+    default:
+        return fmt.Errorf("unsupported model: %s", task.ModelName)
+    }
+}
+```
+
+#### Service层职责
+```go
+// Service负责具体的AI API调用
+type VolcengineImageService struct {
+    arkClient    *ark.Client
+    visualClient *visual.Client
+    logger       *logrus.Logger
+}
+
+func (s *VolcengineImageService) GenerateDoubaoImage(ctx context.Context, task *Task) error {
+    // 具体的豆包API调用逻辑
+    request := &ark.ImageGenerationRequest{
+        Model:  task.ModelName,
+        Prompt: task.Prompt,
+        // 其他参数...
+    }
+    
+    response, err := s.arkClient.GenerateImage(ctx, request)
+    if err != nil {
+        return fmt.Errorf("豆包图像生成失败: %w", err)
+    }
+    
+    // 处理响应...
+    return nil
+}
+```
+
+## 🎯 任务队列集成
+
+### 异步任务处理
+```go
+// 使用Asynq进行异步任务处理
+type AITaskProcessor struct {
+    registry *ServiceRegistry
+    logger   *logrus.Logger
+}
+
+func (p *AITaskProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
+    var task Task
+    if err := json.Unmarshal(t.Payload(), &task); err != nil {
+        return fmt.Errorf("任务反序列化失败: %w", err)
+    }
+    
+    // 根据任务类型获取对应的Provider
+    provider := p.registry.GetProvider(task.ProviderType)
+    if provider == nil {
+        return fmt.Errorf("未找到Provider: %s", task.ProviderType)
+    }
+    
+    // 分发任务
+    return provider.DispatchTask(ctx, &task)
+}
+```
+
+### 任务优先级配置
+```go
+// 任务优先级定义
+const (
+    PriorityCritical = "critical" // 紧急任务
+    PriorityDefault  = "default"  // 普通任务
+    PriorityLow      = "low"      // 低优先级任务
+)
+
+// 根据任务类型设置优先级
+func GetTaskPriority(taskType string) string {
+    switch taskType {
+    case "video_generation":
+        return PriorityCritical // 视频生成优先级高
+    case "image_generation":
+        return PriorityDefault
+    default:
+        return PriorityLow
+    }
+}
+```
+
+## 🔧 配置管理
+
+### 环境变量配置
+```go
+type AIConfig struct {
+    // 火山方舟配置
+    ARKAPIKey    string `env:"ARK_API_KEY" validate:"required"`
+    ARKBaseURL   string `env:"ARK_BASE_URL" default:"https://ark.cn-beijing.volces.com/api/v3"`
+    
+    // 火山引擎Visual配置 (即梦AI)
+    VolcAccessKey string `env:"VOLCENGINE_ACCESS_KEY"`
+    VolcSecretKey string `env:"VOLCENGINE_SECRET_KEY"`
+    VolcRegion    string `env:"VOLCENGINE_REGION" default:"cn-north-1"`
+    
+    // 通用配置
+    AITimeout     time.Duration `env:"AI_TIMEOUT" default:"30s"`
+    MaxRetries    int           `env:"AI_MAX_RETRIES" default:"3"`
+    RetryInterval time.Duration `env:"AI_RETRY_INTERVAL" default:"5s"`
+}
+```
+
+### 模型参数配置
+```go
+// 豆包图像生成参数
+type DoubaoImageParams struct {
+    Width       int     `json:"width" validate:"min=512,max=2048"`
+    Height      int     `json:"height" validate:"min=512,max=2048"`
+    Steps       int     `json:"steps" validate:"min=1,max=50" default:"20"`
+    Scale       float64 `json:"scale" validate:"min=1,max=20" default:"7.5"`
+    Seed        int64   `json:"seed,omitempty"`
+    ReturnType  string  `json:"return_type" validate:"oneof=url base64" default:"url"`
+}
+
+// 即梦AI图像生成参数 (官方推荐尺寸)
+type JimengImageParams struct {
+    Width      int    `json:"width" validate:"oneof=512 768 1024" default:"1024"`
+    Height     int    `json:"height" validate:"oneof=512 768 1024" default:"1024"`
+    ReturnType string `json:"return_type" validate:"oneof=url base64" default:"url"`
+}
+```
+
+## 🚨 错误处理和重试
+
+### AI服务错误分类
+```go
+type AIError struct {
+    Code    string `json:"code"`
+    Message string `json:"message"`
+    Type    string `json:"type"` // "rate_limit", "quota_exceeded", "model_error", "network_error"
+}
+
+func (e *AIError) Error() string {
+    return fmt.Sprintf("AI服务错误 [%s]: %s", e.Code, e.Message)
+}
+
+// 判断是否需要重试
+func (e *AIError) IsRetryable() bool {
+    switch e.Type {
+    case "rate_limit", "network_error":
+        return true
+    case "quota_exceeded", "model_error":
+        return false
+    default:
+        return false
+    }
+}
+```
+
+### 重试策略
+```go
+func (s *VolcengineService) GenerateImageWithRetry(ctx context.Context, task *Task) error {
+    var lastErr error
+    
+    for attempt := 0; attempt < s.config.MaxRetries; attempt++ {
+        if attempt > 0 {
+            // 指数退避
+            backoff := time.Duration(attempt) * s.config.RetryInterval
+            select {
+            case <-ctx.Done():
+                return ctx.Err()
+            case <-time.After(backoff):
+            }
+        }
+        
+        err := s.generateImage(ctx, task)
+        if err == nil {
+            return nil
+        }
+        
+        // 检查是否为可重试错误
+        if aiErr, ok := err.(*AIError); ok && !aiErr.IsRetryable() {
+            return err
+        }
+        
+        lastErr = err
+        s.logger.WithFields(logrus.Fields{
+            "task_id": task.ID,
+            "attempt": attempt + 1,
+            "error":   err.Error(),
+        }).Warn("AI服务调用失败，准备重试")
+    }
+    
+    return fmt.Errorf("重试次数已用完，最后错误: %w", lastErr)
+}
+```
+
+## 📊 监控和日志
+
+### 结构化日志记录
+```go
+func (s *VolcengineService) logAIRequest(task *Task, duration time.Duration, err error) {
+    fields := logrus.Fields{
+        "task_id":     task.ID,
+        "model_name":  task.ModelName,
+        "provider":    "volcengine",
+        "duration_ms": duration.Milliseconds(),
+    }
+    
+    if err != nil {
+        fields["error"] = err.Error()
+        s.logger.WithFields(fields).Error("AI服务调用失败")
+    } else {
+        s.logger.WithFields(fields).Info("AI服务调用成功")
+    }
+}
+```
+
+### 性能监控
+```go
+func (s *VolcengineService) GenerateImage(ctx context.Context, task *Task) error {
+    start := time.Now()
+    defer func() {
+        duration := time.Since(start)
+        s.logAIRequest(task, duration, nil)
+    }()
+    
+    // AI服务调用逻辑...
+}
+```
+
+## 🔒 安全最佳实践
+
+### API密钥管理
+```go
+// ✅ 从环境变量读取API密钥
+func NewVolcengineService(config *AIConfig) *VolcengineService {
+    if config.ARKAPIKey == "" {
+        panic("ARK_API_KEY is required")
+    }
+    
+    return &VolcengineService{
+        arkClient: ark.NewClient(config.ARKAPIKey),
+        config:    config,
+    }
+}
+
+// ❌ 避免硬编码API密钥
+const ARK_API_KEY = "your-api-key-here" // 危险！
+```
+
+### 输入内容过滤
+```go
+func (s *VolcengineService) validatePrompt(prompt string) error {
+    // 检查提示词长度
+    if len(prompt) > 1000 {
+        return errors.New("提示词长度不能超过1000字符")
+    }
+    
+    // 检查敏感内容 (可集成内容审核服务)
+    if containsSensitiveContent(prompt) {
+        return errors.New("提示词包含敏感内容")
+    }
+    
+    return nil
+}
+```
+
+## 🎨 响应格式标准化
+
+### 统一响应结构
+```go
+type AIResponse struct {
+    TaskID    string    `json:"task_id"`
+    Status    string    `json:"status"` // "pending", "processing", "completed", "failed"
+    Result    *AIResult `json:"result,omitempty"`
+    Error     string    `json:"error,omitempty"`
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
+}
+
+type AIResult struct {
+    Type string      `json:"type"` // "image", "video"
+    Data interface{} `json:"data"`
+}
+
+type ImageResult struct {
+    URL    string `json:"url,omitempty"`
+    Base64 string `json:"base64,omitempty"`
+    Width  int    `json:"width"`
+    Height int    `json:"height"`
+}
+```

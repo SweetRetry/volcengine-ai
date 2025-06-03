@@ -2,6 +2,7 @@ package volcengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -52,7 +53,7 @@ func (s *VolcengineService) GenerateImageByDoubao(ctx context.Context, taskID st
 		errorMsg := "未生成任何图像"
 		s.logger.Errorf("图像生成失败: %s", errorMsg)
 		s.taskService.UpdateTaskError(ctx, taskID, errorMsg)
-		return fmt.Errorf(errorMsg)
+		return errors.New(errorMsg)
 	}
 
 	// 获取第一张图片的URL

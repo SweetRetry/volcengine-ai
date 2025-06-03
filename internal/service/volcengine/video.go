@@ -357,8 +357,8 @@ func (s *VolcengineService) pollJimengVideoResult(ctx context.Context, taskID st
 	// 创建即梦AI视频结果检查器
 	checker := &JimengVideoResultChecker{service: s}
 
-	// 配置轮询参数
-	config := util.NewPollConfig("即梦AI视频", 60, 10*time.Second).WithLogger(s.logger)
+	// 使用默认的自适应轮询配置
+	config := util.DefaultPollConfig("即梦AI视频").WithLogger(s.logger)
 
 	// 使用通用轮询方法
 	result, err := util.PollTaskResult(ctx, taskID, checker, config)
