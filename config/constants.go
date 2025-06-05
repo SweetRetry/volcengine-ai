@@ -4,18 +4,12 @@ package config
 const (
 	// 火山引擎豆包模型
 	VolcengineImageModel = "doubao-seedream-3-0-t2i-250415"
-	VolcengineTextModel  = "doubao-pro-4k"
-	VolcengineVideoModel = "doubao-video-pro"
 
 	// 火山引擎即梦AI模型
-	VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L"
-	VolcengineJimengVideoModel = "jimeng_vgfm_t2v_l20" // 即梦AI文生视频模型
-	VolcengineJimengI2VModel   = "jimeng_vgfm_i2v_l20" // 即梦AI图生视频模型
+	VolcengineJimengImageModel = "jimeng_high_aes_general_v21_L" // 即梦AI图生模型
+	VolcengineJimengVideoModel = "jimeng_vgfm_t2v_l20"           // 即梦AI文生视频模型
+	VolcengineJimengI2VModel   = "jimeng_vgfm_i2v_l20"           // 即梦AI图生视频模型
 
-	// OpenAI模型
-	OpenAIImageModel = "dall-e-3"
-	OpenAITextModel  = "gpt-4"
-	OpenAIVideoModel = "sora"
 )
 
 // 图像尺寸常量 - 火山引擎支持的尺寸
